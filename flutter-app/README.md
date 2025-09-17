@@ -26,14 +26,33 @@ This directory contains the Flutter boilerplate for the PlanGenie mobile app. It
 ## Firebase Setup
 The login experience relies on Firebase Authentication. Configure it before running the app:
 1. Install the FlutterFire CLI: `dart pub global activate flutterfire_cli`.
-2. Run `flutterfire configure` from this folder and choose your Firebase project.
-3. The CLI writes `lib/firebase_options.dart`. The app imports this file directly—keep it committed (excluding secrets) and repeat `flutterfire configure` when adding platforms.
+2. Run `flutterfire configure --project plan-genie-hackathon` from this folder.
+   - This regenerates `lib/firebase_options.dart` with real keys (the committed file only contains placeholders).
+   - It also downloads platform config files when available.
+3. Copy the generated secrets into the platform folders (these files are gitignored):
+   - `android/app/google-services.json`
+   - `ios/Runner/GoogleService-Info.plist`
 4. Enable the following providers in the Firebase console under **Authentication → Sign-in method**:
    - Google
    - Email/Password
    - Phone
 
 Update the OAuth redirect URIs on web/Android/iOS as instructed by Firebase when you enable Google sign-in.
+
+### Platform bootstrap
+
+After you generate the configs, run the platform-specific bootstrap commands once:
+
+```bash
+# iOS
+cd ios
+LANG=en_US.UTF-8 pod install --repo-update
+
+# Android (back at flutter-app/)
+flutter pub get
+```
+
+You can now run the app with `flutter run -d ios` or `flutter run -d android`.
 
 ## Next Steps
 - Draft real features inside `lib/src/features/` grouped by domain.

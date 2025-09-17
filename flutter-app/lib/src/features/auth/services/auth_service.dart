@@ -8,6 +8,10 @@ class AuthService {
   AuthService(this._auth);
 
   final FirebaseAuth _auth;
+  static final GoogleSignIn _googleSignIn = GoogleSignIn.instance;
+  static bool _googleInitialized = false;
+  static Future<void>? _initializingGoogle;
+  static const List<String> _defaultGoogleScopes = <String>['email', 'profile'];
 
   Future<UserCredential> signInWithGoogle() async {
     if (kIsWeb) {
@@ -15,21 +19,33 @@ class AuthService {
       return _auth.signInWithPopup(googleProvider);
     }
 
-    final googleSignIn = GoogleSignIn();
-    final googleUser = await googleSignIn.signIn();
-    if (googleUser == null) {
+    await _ensureGoogleInitialized();
+
+    try {
+      final GoogleSignInAccount account =
+          await _googleSignIn.authenticate();
+      final GoogleSignInAuthentication tokens = account.authentication;
+
+      if (tokens.idToken == null) {
+        throw FirebaseAuthException(
+          code: 'google-missing-id-token',
+          message: 'Google sign-in failed to return an ID token.',
+        );
+      }
+
+      final String? accessToken = await _fetchAccessToken(account);
+
+      final OAuthCredential credential = GoogleAuthProvider.credential(
+        idToken: tokens.idToken,
+        accessToken: accessToken,
+      );
+      return _auth.signInWithCredential(credential);
+    } on GoogleSignInException catch (error) {
       throw FirebaseAuthException(
-        code: 'ERROR_ABORTED_BY_USER',
-        message: 'Sign-in aborted before completion.',
+        code: 'google-${error.code.name}',
+        message: error.description ?? 'Google sign-in failed.',
       );
     }
-
-    final googleAuth = await googleUser.authentication;
-    final credential = GoogleAuthProvider.credential(
-      accessToken: googleAuth.accessToken,
-      idToken: googleAuth.idToken,
-    );
-    return _auth.signInWithCredential(credential);
   }
 
   Future<UserCredential> signInWithEmail({
@@ -105,6 +121,42 @@ class AuthService {
       smsCode: smsCode,
     );
     return _auth.signInWithCredential(credential);
+  }
+
+  Future<String?> _fetchAccessToken(GoogleSignInAccount account) async {
+    try {
+      final GoogleSignInAuthorizationClient client =
+          account.authorizationClient;
+      final GoogleSignInClientAuthorization? cached =
+          await client.authorizationForScopes(_defaultGoogleScopes);
+      if (cached != null) {
+        return cached.accessToken;
+      }
+      final GoogleSignInClientAuthorization refreshed =
+          await client.authorizeScopes(_defaultGoogleScopes);
+      return refreshed.accessToken;
+    } on GoogleSignInException {
+      return null;
+    }
+  }
+
+  static Future<void> _ensureGoogleInitialized() async {
+    if (_googleInitialized) {
+      return;
+    }
+    final Future<void>? inFlight = _initializingGoogle;
+    if (inFlight != null) {
+      await inFlight;
+      return;
+    }
+    final Future<void> initialize = _googleSignIn.initialize();
+    _initializingGoogle = initialize;
+    try {
+      await initialize;
+      _googleInitialized = true;
+    } finally {
+      _initializingGoogle = null;
+    }
   }
 }
 

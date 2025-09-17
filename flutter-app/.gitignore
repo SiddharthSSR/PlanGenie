@@ -3,6 +3,14 @@
 .packages
 build/
 flutter_*.png
+android/app/google-services.json
+ios/Runner/GoogleService-Info.plist
+.metadata
+.flutter-plugins
+.flutter-plugins-dependencies
+plangenie.iml
+android/*.iml
+android/local.properties
 
 # IDE files
 .idea/

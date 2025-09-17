@@ -1,8 +1,6 @@
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
-import 'package:plangenie/src/theme/theme_compat.dart';
 import 'package:plangenie/src/widgets/feedback_banner.dart';
 
 import 'services/auth_service.dart';
@@ -51,7 +49,8 @@ class _SignUpScreenState extends State<SignUpScreen> {
         decoration: BoxDecoration(
           gradient: LinearGradient(
             colors: [
-              theme.colorScheme.primaryContainer.withValues(alpha: 0.35),
+              theme.colorScheme.primaryContainer
+                  .withAlpha((0.35 * 255).round()),
               theme.colorScheme.surface,
             ],
             begin: Alignment.topLeft,

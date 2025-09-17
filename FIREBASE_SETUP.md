@@ -38,7 +38,7 @@ flutterfire configure --project=plan-genie-hackathon
 ```
 
 This will:
-- Create `lib/firebase_options.dart` with your API keys
+- Create `lib/firebase_options.dart` with your API keys (overwriting the placeholder values committed to the repo)
 - Set up platform-specific configuration files (if needed)
 
 ### 4. Alternative Manual Setup
@@ -57,12 +57,7 @@ If you can't run FlutterFire CLI, you can manually create the configuration:
    - Scroll down to "Your apps" section
    - Copy the config values for each platform
 
-3. Replace the placeholder values in `firebase_options.dart`:
-   - `YOUR_WEB_API_KEY_HERE` → Web API Key
-   - `YOUR_ANDROID_API_KEY_HERE` → Android API Key  
-   - `YOUR_IOS_API_KEY_HERE` → iOS API Key
-   - `YOUR_PROJECT_ID_HERE` → Project ID (`plan-genie-hackathon`)
-   - And so on...
+3. Replace the placeholder values in `firebase_options.dart` (look for `REPLACE_WITH_*`).
 
 ## Security Notes
 
