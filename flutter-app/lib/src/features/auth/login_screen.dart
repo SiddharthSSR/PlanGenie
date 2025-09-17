@@ -1,6 +1,7 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
+import 'package:plangenie/src/theme/theme_compat.dart';
 import 'package:plangenie/src/widgets/feedback_banner.dart';
 
 import 'services/auth_service.dart';
@@ -45,7 +46,7 @@ class _LoginScreenState extends State<LoginScreen> {
         decoration: BoxDecoration(
           gradient: LinearGradient(
             colors: [
-              theme.colorScheme.primaryContainer.withOpacity(0.5),
+              theme.colorScheme.primaryContainer.withValues(alpha: 0.5),
               theme.colorScheme.surface,
             ],
             begin: Alignment.topLeft,
@@ -376,7 +377,7 @@ class _AuthTabs extends StatelessWidget {
         children: [
           Container(
             decoration: BoxDecoration(
-              color: theme.colorScheme.surfaceVariant.withOpacity(0.4),
+              color: theme.colorScheme.surface.withValues(alpha: 0.4),
               borderRadius: BorderRadius.circular(16),
             ),
             child: TabBar(
