@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import 'features/home/home_screen.dart';
+import 'features/auth/widgets/auth_gate.dart';
 import 'theme/app_theme.dart';
 
 class PlanGenieApp extends StatelessWidget {
@@ -12,7 +12,7 @@ class PlanGenieApp extends StatelessWidget {
       title: 'PlanGenie',
       debugShowCheckedModeBanner: false,
       theme: PlanGenieTheme.light(),
-      home: const HomeScreen(),
+      home: const AuthGate(),
     );
   }
 }
