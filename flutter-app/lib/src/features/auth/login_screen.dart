@@ -1,7 +1,6 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
-import 'package:plangenie/src/theme/theme_compat.dart';
 import 'package:plangenie/src/widgets/feedback_banner.dart';
 
 import 'services/auth_service.dart';
@@ -46,7 +45,8 @@ class _LoginScreenState extends State<LoginScreen> {
         decoration: BoxDecoration(
           gradient: LinearGradient(
             colors: [
-              theme.colorScheme.primaryContainer.withValues(alpha: 0.5),
+              theme.colorScheme.primaryContainer
+                  .withAlpha((0.5 * 255).round()),
               theme.colorScheme.surface,
             ],
             begin: Alignment.topLeft,
@@ -376,27 +376,36 @@ class _AuthTabs extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           Container(
+            clipBehavior: Clip.antiAlias,
             decoration: BoxDecoration(
-              color: theme.colorScheme.surface.withValues(alpha: 0.4),
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: TabBar(
-              labelColor: theme.colorScheme.onSurface,
-              indicatorColor: theme.colorScheme.primary,
-              dividerColor: Colors.transparent,
-              indicator: BoxDecoration(
-                color: theme.colorScheme.primaryContainer,
-                borderRadius: BorderRadius.circular(12),
+              color: theme.colorScheme.primaryContainer
+                  .withAlpha((0.12 * 255).round()),
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(
+                color: theme.colorScheme.outlineVariant,
               ),
-              tabs: const [
-                Tab(text: 'Email'),
-                Tab(text: 'Phone number'),
-              ],
+            ),
+            child: Padding(
+              padding: const EdgeInsets.all(4),
+              child: TabBar(
+                indicatorSize: TabBarIndicatorSize.tab,
+                labelColor: theme.colorScheme.onPrimaryContainer,
+                unselectedLabelColor: theme.colorScheme.onSurfaceVariant,
+                dividerColor: Colors.transparent,
+                indicator: BoxDecoration(
+                  color: theme.colorScheme.primaryContainer,
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                tabs: const [
+                  Tab(text: 'Email'),
+                  Tab(text: 'Phone number'),
+                ],
+              ),
             ),
           ),
           const SizedBox(height: 16),
           SizedBox(
-            height: 260,
+            height: 320,
             child: TabBarView(
               children: [
                 emailForm,
@@ -480,7 +489,7 @@ class _EmailLoginForm extends StatelessWidget {
           onPressed: isLoading ? null : onCreateAccount,
           child: const Text('Create an account'),
         ),
-        const Spacer(),
+        const SizedBox(height: 12),
         Align(
           alignment: Alignment.centerRight,
           child: TextButton(
