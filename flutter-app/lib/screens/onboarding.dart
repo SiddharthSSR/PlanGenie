@@ -1,14 +1,8 @@
 import 'package:flutter/material.dart';
 
-const LinearGradient _backgroundGradient = LinearGradient(
-  begin: Alignment.topCenter,
-  end: Alignment.bottomCenter,
-  colors: [
-    Color(0xFF0B1120),
-    Color(0xFF1E3A8A),
-    Color(0xFF3B82F6),
-  ],
-);
+const _gradientStart = Color(0xFF0B1120);
+const _gradientMiddle = Color(0xFF1E3A8A);
+const _gradientEnd = Color(0xFF3B82F6);
 
 class OnboardingScreen extends StatefulWidget {
   const OnboardingScreen({super.key});
@@ -29,6 +23,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       body:
           'Understand your travel DNA with curated journeys tailored to how you like to explore.',
       icon: Icons.fingerprint,
+      accentColor: Color(0xFF60A5FA),
       semanticLabel: 'Travel DNA onboarding highlight',
     ),
     _OnboardingContent(
@@ -36,6 +31,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       body:
           'Watch your plan adapt in real-time as plans shift, crowds swell, or weather calls for a pivot.',
       icon: Icons.auto_awesome,
+      accentColor: Color(0xFF8B5CF6),
       semanticLabel: 'Adaptive itinerary onboarding highlight',
     ),
     _OnboardingContent(
@@ -43,6 +39,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       body:
           'Unlock hyperlocal tips and hidden gems surfaced by our AI scouts before anyone else.',
       icon: Icons.spa,
+      accentColor: Color(0xFF34D399),
       semanticLabel: 'Hidden gems onboarding highlight',
     ),
     _OnboardingContent(
@@ -50,6 +47,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       body:
           'Reserve stays, experiences, and transport in a single flow without breaking your planning zone.',
       icon: Icons.event_available,
+      accentColor: Color(0xFFF59E0B),
       semanticLabel: 'Seamless booking onboarding highlight',
     ),
     _OnboardingContent(
@@ -57,6 +55,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       body:
           'Navigate your itinerary through an immersive, map-first interface built for spatial thinkers.',
       icon: Icons.map_outlined,
+      accentColor: Color(0xFF38BDF8),
       semanticLabel: 'Map-first UI onboarding highlight',
     ),
   ];
@@ -102,14 +101,35 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     Navigator.of(context).pushReplacementNamed('/login');
   }
 
+  LinearGradient _backgroundForProgress(double progress) {
+    final clamped = progress.clamp(0.0, 1.0);
+    final topColor =
+        Color.lerp(_gradientStart, _gradientMiddle, clamped) ?? _gradientStart;
+    final bottomColor =
+        Color.lerp(_gradientMiddle, _gradientEnd, clamped) ?? _gradientEnd;
+
+    return LinearGradient(
+      begin: Alignment.topCenter,
+      end: Alignment.bottomCenter,
+      colors: [topColor, bottomColor],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     final isLastPage = _currentPage == _pages.length - 1;
+    final double clampedPage =
+        _pages.length <= 1 ? 0.0 : _pageOffset.clamp(0.0, _pages.length - 1);
+    final double scrollProgress =
+        _pages.length <= 1 ? 0.0 : clampedPage / (_pages.length - 1);
+
+    final backgroundGradient = _backgroundForProgress(scrollProgress);
 
     return Scaffold(
       body: Container(
-        decoration: const BoxDecoration(
-          gradient: _backgroundGradient,
+        decoration: BoxDecoration(
+          gradient: backgroundGradient,
         ),
         child: Stack(
           children: [
@@ -122,9 +142,11 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
               itemBuilder: (context, index) {
                 final content = _pages[index];
                 final offset = _pageOffset - index;
+                final activation = (1 - offset.abs()).clamp(0.0, 1.0);
                 return _OnboardingPage(
                   content: content,
                   offset: offset,
+                  activation: activation,
                 );
               },
             ),
@@ -133,18 +155,27 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                 children: [
                   Positioned(
                     top: 16,
-                    right: 16,
-                    child: TextButton(
-                      onPressed: () =>
-                          Navigator.of(context).pushNamed('/login'),
-                      style: TextButton.styleFrom(
-                        foregroundColor: Colors.white.withOpacity(0.92),
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 20,
-                          vertical: 12,
+                    right: 24,
+                    child: Semantics(
+                      button: true,
+                      label: 'Log in',
+                      child: GestureDetector(
+                        onTap: () => Navigator.of(context).pushNamed('/login'),
+                        behavior: HitTestBehavior.opaque,
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 6,
+                          ),
+                          child: Text(
+                            'Log in',
+                            style: theme.textTheme.labelLarge?.copyWith(
+                              color: Colors.white.withOpacity(0.92),
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
                         ),
                       ),
-                      child: const Text('Login'),
                     ),
                   ),
                   Positioned(
@@ -199,16 +230,17 @@ class _OnboardingPage extends StatelessWidget {
   const _OnboardingPage({
     required this.content,
     required this.offset,
+    required this.activation,
   });
 
   final _OnboardingContent content;
   final double offset;
+  final double activation;
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
     final double clampedOffset = offset.clamp(-1.0, 1.0);
-    final double iconParallax = clampedOffset * -36;
+    final double iconParallax = clampedOffset * -32;
     final double textParallax = clampedOffset * 10;
     final double opacity = (1 - clampedOffset.abs()).clamp(0.0, 1.0);
 
@@ -220,11 +252,10 @@ class _OnboardingPage extends StatelessWidget {
           children: [
             Transform.translate(
               offset: Offset(0, iconParallax),
-              child: Icon(
-                content.icon,
-                size: 140,
-                color: theme.colorScheme.onPrimary.withOpacity(0.08),
-                semanticLabel: content.semanticLabel,
+              child: _AnimatedFeatureIcon(
+                icon: content.icon,
+                accentColor: content.accentColor,
+                activation: activation,
               ),
             ),
             const SizedBox(height: 48),
@@ -234,7 +265,7 @@ class _OnboardingPage extends StatelessWidget {
               child: AnimatedSlide(
                 duration: const Duration(milliseconds: 320),
                 curve: Curves.easeOutCubic,
-                offset: Offset(0, textParallax / 80),
+                offset: Offset(0, textParallax / 72),
                 child: _OnboardingTextBlock(content: content),
               ),
             ),
@@ -252,9 +283,8 @@ class _OnboardingTextBlock extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final textTheme = theme.textTheme;
-    final onPrimary = theme.colorScheme.onPrimary;
+    final textTheme = Theme.of(context).textTheme;
+    const onPrimary = Colors.white;
 
     return Column(
       mainAxisSize: MainAxisSize.min,
@@ -270,7 +300,7 @@ class _OnboardingTextBlock extends StatelessWidget {
                 (textTheme.displaySmall ?? textTheme.headlineMedium)?.copyWith(
               color: onPrimary,
               fontWeight: FontWeight.w700,
-              height: 1.1,
+              height: 1.08,
               letterSpacing: -0.5,
             ),
           ),
@@ -282,10 +312,46 @@ class _OnboardingTextBlock extends StatelessWidget {
           style: (textTheme.bodyLarge ?? const TextStyle()).copyWith(
             color: onPrimary.withOpacity(0.88),
             height: 1.55,
+            fontWeight: FontWeight.w400,
           ),
           semanticsLabel: content.body,
         ),
       ],
+    );
+  }
+}
+
+class _AnimatedFeatureIcon extends StatelessWidget {
+  const _AnimatedFeatureIcon({
+    required this.icon,
+    required this.accentColor,
+    required this.activation,
+  });
+
+  final IconData icon;
+  final Color accentColor;
+  final double activation;
+
+  @override
+  Widget build(BuildContext context) {
+    return TweenAnimationBuilder<double>(
+      tween: Tween<double>(begin: 0, end: activation.clamp(0.0, 1.0)),
+      duration: const Duration(milliseconds: 600),
+      curve: Curves.easeOutCubic,
+      builder: (context, value, child) {
+        final fill = value.clamp(0.0, 1.0);
+        final baseColor = Colors.white.withOpacity(0.18);
+        final iconColor = Color.lerp(baseColor, accentColor, fill) ?? baseColor;
+
+        return Transform.scale(
+          scale: 0.94 + (0.06 * fill),
+          child: Icon(
+            icon,
+            size: 160,
+            color: iconColor,
+          ),
+        );
+      },
     );
   }
 }
@@ -349,11 +415,13 @@ class _OnboardingContent {
     required this.title,
     required this.body,
     required this.icon,
+    required this.accentColor,
     required this.semanticLabel,
   });
 
   final String title;
   final String body;
   final IconData icon;
+  final Color accentColor;
   final String semanticLabel;
 }

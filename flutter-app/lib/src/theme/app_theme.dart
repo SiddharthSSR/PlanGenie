@@ -4,20 +4,52 @@ class PlanGenieTheme {
   const PlanGenieTheme._();
 
   static ThemeData light() {
-    return ThemeData(
-      colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF2563EB)),
+    final base = ThemeData(
+      colorScheme: ColorScheme.fromSeed(
+        seedColor: const Color(0xFF2563EB),
+      ),
       useMaterial3: true,
-      textTheme: _typography,
+      scaffoldBackgroundColor: const Color(0xFF020617),
+      fontFamily: 'Modellica',
+    );
+
+    final textTheme = base.textTheme
+        .apply(
+          fontFamily: 'Modellica',
+          bodyColor: Colors.white,
+          displayColor: Colors.white,
+        )
+        .copyWith(
+          displaySmall: base.textTheme.displaySmall?.copyWith(
+            fontWeight: FontWeight.w700,
+            letterSpacing: -0.6,
+          ),
+          headlineMedium: base.textTheme.headlineMedium?.copyWith(
+            fontWeight: FontWeight.w700,
+            letterSpacing: -0.5,
+          ),
+          titleLarge: base.textTheme.titleLarge?.copyWith(
+            fontWeight: FontWeight.w600,
+            letterSpacing: -0.15,
+          ),
+          bodyLarge: base.textTheme.bodyLarge?.copyWith(
+            fontWeight: FontWeight.w400,
+            height: 1.55,
+          ),
+          labelLarge: base.textTheme.labelLarge?.copyWith(
+            fontWeight: FontWeight.w600,
+            letterSpacing: 0.2,
+          ),
+        );
+
+    return base.copyWith(
+      textTheme: textTheme,
+      appBarTheme: AppBarTheme(
+        backgroundColor: Colors.transparent,
+        foregroundColor: textTheme.bodyLarge?.color,
+        elevation: 0,
+        centerTitle: false,
+      ),
     );
   }
-
-  static const TextTheme _typography = TextTheme(
-    headlineMedium: TextStyle(
-      fontWeight: FontWeight.w700,
-      letterSpacing: -0.5,
-    ),
-    bodyLarge: TextStyle(
-      height: 1.5,
-    ),
-  );
 }

@@ -10,6 +10,6 @@ void main() {
 
     expect(find.text('Travel DNA'), findsOneWidget);
     expect(find.text('Next'), findsOneWidget);
-    expect(find.byIcon(Icons.fingerprint), findsOneWidget);
+    expect(find.byIcon(Icons.fingerprint), findsWidgets);
   });
 }
