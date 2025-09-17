@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'package:plangenie/src/theme/theme_compat.dart';
+
 enum FeedbackBannerVariant { info, success, error }
 
 class FeedbackBanner extends StatelessWidget {
@@ -23,18 +25,17 @@ class FeedbackBanner extends StatelessWidget {
 
     switch (variant) {
       case FeedbackBannerVariant.success:
-        background = colorScheme.primaryContainer.withOpacity(0.7);
+        background = colorScheme.primaryContainer.withValues(alpha: 0.7);
         iconColor = colorScheme.primary;
         icon = Icons.check_circle_outline;
         break;
       case FeedbackBannerVariant.error:
-        background = colorScheme.errorContainer.withOpacity(0.85);
+        background = colorScheme.errorContainer.withValues(alpha: 0.85);
         iconColor = colorScheme.error;
         icon = Icons.error_outline;
         break;
       case FeedbackBannerVariant.info:
-      default:
-        background = colorScheme.surfaceVariant.withOpacity(0.8);
+        background = colorScheme.surface.withValues(alpha: 0.8);
         iconColor = colorScheme.primary;
         icon = Icons.info_outline;
         break;
