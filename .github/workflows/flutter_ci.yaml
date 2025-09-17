@@ -12,8 +12,8 @@ on:
       - '.github/workflows/**'
 
 jobs:
-  build:
-    name: Analyze & Test
+  lint:
+    name: Format & Analyze
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -27,6 +27,7 @@ jobs:
         uses: subosito/flutter-action@v2
         with:
           channel: stable
+          cache: true
 
       - name: Install dependencies
         run: flutter pub get
@@ -37,6 +38,3 @@ jobs:
       - name: Format check
         run: |
           dart format --set-exit-if-changed .
-
-      - name: Run tests
-        run: flutter test

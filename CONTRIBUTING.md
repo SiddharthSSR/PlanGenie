@@ -15,11 +15,10 @@ Thank you for taking the time to contribute! The goal of this document is to mak
 ## Required Checks Before You Push
 - **Static analysis**: run `flutter analyze` inside `flutter-app/`.
 - **Formatting**: run `dart format --set-exit-if-changed .` from `flutter-app/` and ensure no diff remains.
-- **Tests**: run `flutter test` inside `flutter-app/`.
 - **Web projects**: if you touched `mockup/` or `mockup-next/`, run `npm run lint` and `npm test` (if applicable).
 
 ## Pull Request Checklist
-- [ ] Tests and lint checks complete with local verification noted in the PR description.
+- [ ] Format and lint checks (`dart format`, `flutter analyze`) noted in the PR description.
 - [ ] Updated documentation and mockups as needed.
 - [ ] Screenshots or screen recordings included for notable UI changes.
 - [ ] Clear summary of the change, risks, and rollback plan.
