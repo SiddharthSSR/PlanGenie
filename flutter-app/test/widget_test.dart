@@ -4,10 +4,12 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:plangenie/src/app.dart';
 
 void main() {
-  testWidgets('home screen renders intro copy', (WidgetTester tester) async {
+  testWidgets('onboarding screen renders first panel',
+      (WidgetTester tester) async {
     await tester.pumpWidget(const PlanGenieApp());
 
-    expect(find.text('Welcome to PlanGenie'), findsOneWidget);
-    expect(find.byIcon(Icons.map_outlined), findsOneWidget);
+    expect(find.text('Travel DNA'), findsOneWidget);
+    expect(find.text('Next'), findsOneWidget);
+    expect(find.byIcon(Icons.fingerprint), findsOneWidget);
   });
 }

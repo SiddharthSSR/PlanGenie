@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
-import 'features/home/home_screen.dart';
+import '../screens/home.dart';
+import '../screens/login.dart';
+import '../screens/onboarding.dart';
 import 'theme/app_theme.dart';
 
 class PlanGenieApp extends StatelessWidget {
@@ -12,7 +14,12 @@ class PlanGenieApp extends StatelessWidget {
       title: 'PlanGenie',
       debugShowCheckedModeBanner: false,
       theme: PlanGenieTheme.light(),
-      home: const HomeScreen(),
+      initialRoute: '/',
+      routes: {
+        '/': (context) => const OnboardingScreen(),
+        '/home': (context) => const HomeScreen(),
+        '/login': (context) => const LoginScreen(),
+      },
     );
   }
 }
