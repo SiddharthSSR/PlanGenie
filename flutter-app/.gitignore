@@ -1,0 +1,16 @@
+# Generated files
+.dart_tool/
+.packages
+build/
+flutter_*.png
+
+# IDE files
+.idea/
+.vscode/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Dependency lock files (managed per-platform)
+pubspec.lock

@@ -33,3 +33,6 @@ Thumbs.db
 *.tmp
 *.temp
 
+# WARP AI assistant files
+WARP.md
+

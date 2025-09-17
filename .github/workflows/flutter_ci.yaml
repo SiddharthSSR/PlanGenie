@@ -1,0 +1,42 @@
+name: Flutter CI
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'flutter-app/**'
+      - '.github/workflows/**'
+  pull_request:
+    paths:
+      - 'flutter-app/**'
+      - '.github/workflows/**'
+
+jobs:
+  build:
+    name: Analyze & Test
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: flutter-app
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Analyze
+        run: flutter analyze
+
+      - name: Format check
+        run: |
+          dart format --set-exit-if-changed .
+
+      - name: Run tests
+        run: flutter test
