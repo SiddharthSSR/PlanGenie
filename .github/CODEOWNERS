@@ -1,0 +1,8 @@
+# Default code owners for PlanGenie.
+# Update the GitHub handles below to match the current maintainers.
+
+*       @akshay
+flutter-app/    @akshay
+mockup/         @akshay
+mockup-next/    @akshay
+assets/         @akshay
