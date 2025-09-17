@@ -33,6 +33,18 @@ Thumbs.db
 *.tmp
 *.temp
 
+# Firebase configuration files (contains sensitive API keys)
+/flutter-app/lib/firebase_options.dart
+/flutter-app/android/app/google-services.json
+/flutter-app/ios/Runner/GoogleService-Info.plist
+/flutter-app/macos/Runner/GoogleService-Info.plist
+/flutter-app/windows/firebase_app_id_file.json
+/flutter-app/linux/firebase_options.dart
+
+# Firebase private key files
+**/serviceAccountKey.json
+**/firebase-adminsdk-*.json
+
 # WARP AI assistant files
 WARP.md
 
