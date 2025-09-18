@@ -1,5 +1,5 @@
 import os
-from typing import Literal
+from typing import Literal, Any
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -34,17 +34,30 @@ MAPS_API_KEY = None
 
 app = FastAPI(title="Planner API")
 
-raw_origins = os.getenv("PLANGENIE_CORS_ORIGINS")
-allowed_origins = [o.strip() for o in raw_origins.split(",") if o.strip()] if raw_origins else ["*"]
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=allowed_origins,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+raw_origins = os.getenv("PLANGENIE_CORS_ORIGINS", "")  # comma-separated
+origin_regex = os.getenv(
+    "PLANGENIE_CORS_REGEX",
+    r"^https?://localhost(:\d+)?$"  # allow any localhost port by default
 )
 
+allowed_origins = [o.strip() for o in raw_origins.split(",") if o.strip()]
 
+cors_kwargs: dict[str, Any] = {
+    "allow_methods": ["*"],             # GET, POST, PUT, DELETE, OPTIONS, ...
+    "allow_headers": ["*"],             # Authorization, Content-Type, custom headers
+    "expose_headers": ["*"],            # if frontend reads custom response headers
+    "allow_credentials": True,          # needed if you use cookies / withCredentials
+    "max_age": 86400,                   # cache preflight for 24h
+}
+
+# Prefer regex for localhost dev; fall back to explicit list for prod
+if origin_regex:
+    cors_kwargs["allow_origin_regex"] = origin_regex
+if allowed_origins:
+    # You can combine regex + explicit allowlist: fastapi will honor both
+    cors_kwargs["allow_origins"] = allowed_origins
+
+app.add_middleware(CORSMiddleware, **cors_kwargs)
 
 class PlanRequest(BaseModel):
     origin: str = Field(..., examples=["DEL"])
