@@ -1,8 +1,9 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
+import 'package:plangenie/screens/onboarding.dart';
+
 import '../../home/home_screen.dart';
-import '../login_screen.dart';
 
 class AuthGate extends StatelessWidget {
   const AuthGate({super.key});
@@ -22,7 +23,7 @@ class AuthGate extends StatelessWidget {
           return const HomeScreen();
         }
 
-        return const LoginScreen();
+        return const OnboardingScreen();
       },
     );
   }

@@ -1,4 +1,7 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
+
+import 'package:plangenie/src/features/auth/login_screen.dart';
+import 'package:plangenie/src/features/auth/signup_screen.dart';
 
 const _gradientStart = Color(0xFF0B1120);
 const _gradientMiddle = Color(0xFF1E3A8A);
@@ -98,7 +101,19 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 
     // TODO: Persist onboarding completion status via SharedPreferences or Firestore.
     // TODO: Hook onboarding completion into Firebase Auth profile creation once sign-up is implemented.
-    Navigator.of(context).pushReplacementNamed('/login');
+    _openSignUp();
+  }
+
+  void _openLogin() {
+    Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => const LoginScreen()),
+    );
+  }
+
+  void _openSignUp() {
+    Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => const SignUpScreen()),
+    );
   }
 
   LinearGradient _backgroundForProgress(double progress) {
@@ -160,7 +175,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                       button: true,
                       label: 'Log in',
                       child: GestureDetector(
-                        onTap: () => Navigator.of(context).pushNamed('/login'),
+                        onTap: _openLogin,
                         behavior: HitTestBehavior.opaque,
                         child: Padding(
                           padding: const EdgeInsets.symmetric(
@@ -425,3 +440,4 @@ class _OnboardingContent {
   final Color accentColor;
   final String semanticLabel;
 }
+
