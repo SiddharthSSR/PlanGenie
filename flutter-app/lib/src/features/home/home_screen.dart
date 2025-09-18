@@ -7,7 +7,7 @@ class HomeScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Random'),
+        title: const Text('PlanGenie'),
       ),
       body: const _HomeBody(),
     );
@@ -28,7 +28,7 @@ class _HomeBody extends StatelessWidget {
           Icon(Icons.map_outlined, size: 80, color: colorScheme.primary),
           const SizedBox(height: 24),
           Text(
-            'Welcome to Random',
+            'Welcome to PlanGenie',
             style: Theme.of(context).textTheme.headlineMedium,
             textAlign: TextAlign.center,
           ),
