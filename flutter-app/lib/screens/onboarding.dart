@@ -1,7 +1,6 @@
 ﻿import 'package:flutter/material.dart';
 
 import 'package:plangenie/src/features/auth/login_screen.dart';
-import 'package:plangenie/src/features/auth/signup_screen.dart';
 
 const _gradientStart = Color(0xFF0B1120);
 const _gradientMiddle = Color(0xFF1E3A8A);
@@ -100,19 +99,13 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     }
 
     // TODO: Persist onboarding completion status via SharedPreferences or Firestore.
-    // TODO: Hook onboarding completion into Firebase Auth profile creation once sign-up is implemented.
-    _openSignUp();
+    // Present the login screen so returning users sign in after onboarding.
+    _openLogin();
   }
 
   void _openLogin() {
     Navigator.of(context).push(
       MaterialPageRoute(builder: (_) => const LoginScreen()),
-    );
-  }
-
-  void _openSignUp() {
-    Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => const SignUpScreen()),
     );
   }
 
@@ -254,6 +247,11 @@ class _OnboardingPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final mediaQuery = MediaQuery.of(context);
+    final isWideLayout = mediaQuery.size.width >= 720;
+    final horizontalPadding = isWideLayout ? mediaQuery.size.width * 0.12 : 32.0;
+    final verticalPadding = mediaQuery.size.height >= 780 ? 96.0 : 48.0;
+    final iconSize = isWideLayout ? 200.0 : 160.0;
     final double clampedOffset = offset.clamp(-1.0, 1.0);
     final double iconParallax = clampedOffset * -32;
     final double textParallax = clampedOffset * 10;
@@ -261,7 +259,10 @@ class _OnboardingPage extends StatelessWidget {
 
     return SafeArea(
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 40),
+        padding: EdgeInsets.symmetric(
+          horizontal: horizontalPadding,
+          vertical: verticalPadding,
+        ),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
@@ -271,6 +272,7 @@ class _OnboardingPage extends StatelessWidget {
                 icon: content.icon,
                 accentColor: content.accentColor,
                 activation: activation,
+                size: iconSize,
               ),
             ),
             const SizedBox(height: 48),
@@ -300,11 +302,15 @@ class _OnboardingTextBlock extends StatelessWidget {
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
     const onPrimary = Colors.white;
+    final mediaQuery = MediaQuery.of(context);
+    final textMaxWidth = mediaQuery.size.width >= 720 ? mediaQuery.size.width * 0.5 : double.infinity;
 
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.center,
-      children: [
+    return ConstrainedBox(
+      constraints: BoxConstraints(maxWidth: textMaxWidth),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
         Semantics(
           header: true,
           label: content.semanticLabel,
@@ -332,6 +338,7 @@ class _OnboardingTextBlock extends StatelessWidget {
           semanticsLabel: content.body,
         ),
       ],
+      ),
     );
   }
 }
@@ -341,11 +348,13 @@ class _AnimatedFeatureIcon extends StatelessWidget {
     required this.icon,
     required this.accentColor,
     required this.activation,
+    required this.size,
   });
 
   final IconData icon;
   final Color accentColor;
   final double activation;
+  final double size;
 
   @override
   Widget build(BuildContext context) {
@@ -362,7 +371,7 @@ class _AnimatedFeatureIcon extends StatelessWidget {
           scale: 0.94 + (0.06 * fill),
           child: Icon(
             icon,
-            size: 160,
+            size: size,
             color: iconColor,
           ),
         );
@@ -440,4 +449,3 @@ class _OnboardingContent {
   final Color accentColor;
   final String semanticLabel;
 }
-

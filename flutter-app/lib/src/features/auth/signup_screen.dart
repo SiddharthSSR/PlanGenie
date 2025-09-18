@@ -1,31 +1,34 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:plangenie/src/widgets/feedback_banner.dart';
 
+import 'providers/auth_providers.dart';
 import 'services/auth_service.dart';
 
-class SignUpScreen extends StatefulWidget {
+class SignUpScreen extends ConsumerStatefulWidget {
   const SignUpScreen({super.key});
 
   @override
-  State<SignUpScreen> createState() => _SignUpScreenState();
+  ConsumerState<SignUpScreen> createState() => _SignUpScreenState();
 }
 
-class _SignUpScreenState extends State<SignUpScreen> {
+class _SignUpScreenState extends ConsumerState<SignUpScreen> {
   final _formKey = GlobalKey<FormState>();
   final _fullNameController = TextEditingController();
   final _emailController = TextEditingController();
   final _phoneController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
-  final _authService = AuthService(FirebaseAuth.instance);
 
   bool _obscurePassword = true;
   bool _obscureConfirmPassword = true;
   bool _isLoading = false;
   bool _acceptedTerms = false;
   String? _errorMessage;
+
+  AuthService get _authService => ref.read(authServiceProvider);
 
   @override
   void dispose() {
@@ -40,6 +43,11 @@ class _SignUpScreenState extends State<SignUpScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final mediaQuery = MediaQuery.of(context);
+    final isWideLayout = mediaQuery.size.width >= 720;
+    final maxContentWidth = isWideLayout ? 520.0 : 420.0;
+    final horizontalPadding = isWideLayout ? (mediaQuery.size.width - maxContentWidth) / 2 : 24.0;
+    final verticalPadding = mediaQuery.size.height >= 840 ? 40.0 : 24.0;
 
     return Scaffold(
       appBar: AppBar(
@@ -58,85 +66,94 @@ class _SignUpScreenState extends State<SignUpScreen> {
           ),
         ),
         child: SafeArea(
-          child: Center(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.all(24),
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 420),
-                child: Card(
-                  elevation: 8,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(28),
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final effectiveHorizontal = constraints.maxWidth >= maxContentWidth
+                  ? horizontalPadding
+                  : 24.0;
+
+              return Center(
+                child: SingleChildScrollView(
+                  padding: EdgeInsets.symmetric(
+                    horizontal: effectiveHorizontal,
+                    vertical: verticalPadding,
                   ),
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 24,
-                      vertical: 32,
-                    ),
-                    child: Form(
-                      key: _formKey,
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(
-                            'Create your PlanGenie account',
-                            style: theme.textTheme.headlineSmall,
-                          ),
-                          const SizedBox(height: 12),
-                         Text(
-                           'Unlock personalized trips, collaborative planning, and synced itineraries across devices.',
-                           style: theme.textTheme.bodyMedium,
-                         ),
-                          if (_errorMessage != null) ...[
-                            const SizedBox(height: 16),
-                            FeedbackBanner(
-                              message: _errorMessage!,
-                              variant: FeedbackBannerVariant.error,
-                            ),
-                          ],
-                          const SizedBox(height: 24),
-                          TextFormField(
-                            controller: _fullNameController,
-                            textInputAction: TextInputAction.next,
-                            autofillHints: const [AutofillHints.name],
-                            decoration: const InputDecoration(
-                              labelText: 'Full name',
-                              prefixIcon: Icon(Icons.person_outline),
-                            ),
-                            validator: (value) {
-                              if (value == null || value.trim().isEmpty) {
-                                return 'Enter your full name.';
-                              }
-                              if (value.trim().split(' ').length < 2) {
-                                return 'Add first and last name for a richer profile.';
-                              }
-                              return null;
-                            },
-                          ),
-                          const SizedBox(height: 16),
-                          TextFormField(
-                            controller: _emailController,
-                            keyboardType: TextInputType.emailAddress,
-                            textInputAction: TextInputAction.next,
-                            autofillHints: const [AutofillHints.email],
-                            decoration: const InputDecoration(
-                              labelText: 'Email address',
-                              prefixIcon: Icon(Icons.alternate_email),
-                            ),
-                            validator: (value) {
-                              if (value == null || value.trim().isEmpty) {
-                                return 'Enter an email address.';
-                              }
-                              final emailPattern = RegExp(r'^.+@.+\..+$');
-                              if (!emailPattern.hasMatch(value.trim())) {
-                                return 'Enter a valid email.';
-                              }
-                              return null;
-                            },
-                          ),
-                          const SizedBox(height: 16),
-                          TextFormField(
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(maxWidth: maxContentWidth),
+                    child: Card(
+                      elevation: 8,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(28),
+                      ),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 24,
+                          vertical: 32,
+                        ),
+                        child: Form(
+                          key: _formKey,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                'Create your PlanGenie account',
+                                style: theme.textTheme.headlineSmall,
+                              ),
+                              const SizedBox(height: 12),
+                              Text(
+                                'Unlock personalized trips, collaborative planning, and synced itineraries across devices.',
+                                style: theme.textTheme.bodyMedium,
+                              ),
+                              if (_errorMessage != null) ...[
+                                const SizedBox(height: 16),
+                                FeedbackBanner(
+                                  message: _errorMessage!,
+                                  variant: FeedbackBannerVariant.error,
+                                ),
+                              ],
+                              const SizedBox(height: 24),
+                              TextFormField(
+                                controller: _fullNameController,
+                                textInputAction: TextInputAction.next,
+                                autofillHints: const [AutofillHints.name],
+                                decoration: const InputDecoration(
+                                  labelText: 'Full name',
+                                  prefixIcon: Icon(Icons.person_outline),
+                                ),
+                                validator: (value) {
+                                  if (value == null || value.trim().isEmpty) {
+                                    return 'Enter your full name.';
+                                  }
+                                  if (value.trim().split(' ').length < 2) {
+                                    return 'Add first and last name for a richer profile.';
+                                  }
+                                  return null;
+                                },
+                              ),
+                              const SizedBox(height: 16),
+                              TextFormField(
+                                controller: _emailController,
+                                keyboardType: TextInputType.emailAddress,
+                                textInputAction: TextInputAction.next,
+                                autofillHints: const [AutofillHints.email],
+                                decoration: const InputDecoration(
+                                  labelText: 'Email address',
+                                  prefixIcon: Icon(Icons.alternate_email),
+                                ),
+                                validator: (value) {
+                                  if (value == null || value.trim().isEmpty) {
+                                    return 'Enter an email address.';
+                                  }
+                                  final emailPattern = RegExp(r'^.+@.+\..+$');
+                                  if (!emailPattern.hasMatch(value.trim())) {
+                                    return 'Enter a valid email.';
+                                  }
+                                  return null;
+                                },
+                              ),
+                              const SizedBox(height: 16),
+                              TextFormField(
                             controller: _phoneController,
                             keyboardType: TextInputType.phone,
                             textInputAction: TextInputAction.next,
@@ -256,13 +273,20 @@ class _SignUpScreenState extends State<SignUpScreen> {
                             style: theme.textTheme.bodySmall,
                             textAlign: TextAlign.center,
                           ),
-                        ],
+                              Text(
+                                'We’ll verify your email and phone so travel alerts reach you instantly.',
+                                style: theme.textTheme.bodySmall,
+                                textAlign: TextAlign.center,
+                              ),
+                            ],
+                          ),
+                        ),
                       ),
                     ),
                   ),
                 ),
-              ),
-            ),
+              );
+            },
           ),
         ),
       ),

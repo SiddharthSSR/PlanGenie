@@ -1,25 +1,26 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:plangenie/src/widgets/feedback_banner.dart';
 
+import 'providers/auth_providers.dart';
 import 'services/auth_service.dart';
 import 'widgets/auth_gate.dart';
 import 'signup_screen.dart';
 
-class LoginScreen extends StatefulWidget {
+class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
 
   @override
-  State<LoginScreen> createState() => _LoginScreenState();
+  ConsumerState<LoginScreen> createState() => _LoginScreenState();
 }
 
-class _LoginScreenState extends State<LoginScreen> {
+class _LoginScreenState extends ConsumerState<LoginScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _phoneController = TextEditingController();
   final _smsCodeController = TextEditingController();
-  final _authService = AuthService(FirebaseAuth.instance);
 
   PhoneSignInHandle? _phoneHandle;
   bool _isLoading = false;
@@ -27,6 +28,8 @@ class _LoginScreenState extends State<LoginScreen> {
   String? _statusMessage;
   FeedbackBannerVariant _statusVariant = FeedbackBannerVariant.success;
   String? _errorMessage;
+
+  AuthService get _authService => ref.read(authServiceProvider);
 
   @override
   void dispose() {
@@ -40,6 +43,12 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final mediaQuery = MediaQuery.of(context);
+    final isWideLayout = mediaQuery.size.width >= 720;
+    final maxContentWidth = isWideLayout ? 520.0 : 420.0;
+    final horizontalPadding = isWideLayout ? (mediaQuery.size.width - maxContentWidth) / 2 : 24.0;
+    final verticalPadding = mediaQuery.size.height >= 840 ? 40.0 : 24.0;
+    final tabViewHeight = mediaQuery.size.height >= 780 ? 320.0 : 280.0;
 
     return Scaffold(
       body: Container(
@@ -55,96 +64,108 @@ class _LoginScreenState extends State<LoginScreen> {
           ),
         ),
         child: SafeArea(
-          child: Center(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.all(24),
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 420),
-                child: Card(
-                  elevation: 10,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(28),
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final effectiveHorizontal = constraints.maxWidth >= maxContentWidth
+                  ? horizontalPadding
+                  : 24.0;
+
+              return Center(
+                child: SingleChildScrollView(
+                  padding: EdgeInsets.symmetric(
+                    horizontal: effectiveHorizontal,
+                    vertical: verticalPadding,
                   ),
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 24,
-                      vertical: 32,
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          'Plan smarter, travel better',
-                          style: theme.textTheme.headlineMedium,
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(maxWidth: maxContentWidth),
+                    child: Card(
+                      elevation: 10,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(28),
+                      ),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 24,
+                          vertical: 32,
                         ),
-                        const SizedBox(height: 12),
-                        Text(
-                          'Sign in to sync itineraries, manage bookings, and pick up where you left off.',
-                          style: theme.textTheme.bodyMedium,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              'Plan smarter, travel better',
+                              style: theme.textTheme.headlineMedium,
+                            ),
+                            const SizedBox(height: 12),
+                            Text(
+                              'Sign in to sync itineraries, manage bookings, and pick up where you left off.',
+                              style: theme.textTheme.bodyMedium,
+                            ),
+                            const SizedBox(height: 24),
+                            FilledButton.icon(
+                              onPressed: _isLoading ? null : _signInWithGoogle,
+                              icon: const Icon(Icons.g_mobiledata, size: 32),
+                              label: const Text('Continue with Google'),
+                              style: FilledButton.styleFrom(
+                                padding: const EdgeInsets.symmetric(vertical: 14),
+                              ),
+                            ),
+                            const SizedBox(height: 16),
+                            const _FormDivider(label: 'or continue with'),
+                            const SizedBox(height: 16),
+                            _AuthTabs(
+                              tabHeight: tabViewHeight,
+                              emailForm: _EmailLoginForm(
+                                emailController: _emailController,
+                                passwordController: _passwordController,
+                                obscurePassword: _obscurePassword,
+                                isLoading: _isLoading,
+                                onTogglePassword: () {
+                                  setState(() =>
+                                      _obscurePassword = !_obscurePassword);
+                                },
+                                onSignIn: _signInWithEmail,
+                                onCreateAccount: _openSignUpScreen,
+                                onForgotPassword: _showResetPasswordDialog,
+                              ),
+                              phoneForm: _PhoneLoginForm(
+                                phoneController: _phoneController,
+                                smsCodeController: _smsCodeController,
+                                handle: _phoneHandle,
+                                isLoading: _isLoading,
+                                onSendCode: _startPhoneSignIn,
+                                onVerifyCode: _confirmSmsCode,
+                                onResendCode: _resendCode,
+                              ),
+                            ),
+                            if (_errorMessage != null) ...[
+                              const SizedBox(height: 16),
+                              FeedbackBanner(
+                                message: _errorMessage!,
+                                variant: FeedbackBannerVariant.error,
+                              ),
+                            ],
+                            if (_statusMessage != null) ...[
+                              const SizedBox(height: 16),
+                              FeedbackBanner(
+                                message: _statusMessage!,
+                                variant: _statusVariant,
+                              ),
+                            ],
+                            const SizedBox(height: 24),
+                            Text(
+                              'By continuing, you agree to our Terms of Service and confirm you have read our Privacy Policy.',
+                              style: theme.textTheme.bodySmall,
+                              textAlign: TextAlign.center,
+                            ),
+                          ],
                         ),
-                        const SizedBox(height: 24),
-                        FilledButton.icon(
-                          onPressed: _isLoading ? null : _signInWithGoogle,
-                          icon: const Icon(Icons.g_mobiledata, size: 32),
-                          label: const Text('Continue with Google'),
-                          style: FilledButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(vertical: 14),
-                          ),
-                        ),
-                        const SizedBox(height: 16),
-                        const _FormDivider(label: 'or continue with'),
-                        const SizedBox(height: 16),
-                        _AuthTabs(
-                          emailForm: _EmailLoginForm(
-                            emailController: _emailController,
-                            passwordController: _passwordController,
-                            obscurePassword: _obscurePassword,
-                            isLoading: _isLoading,
-                            onTogglePassword: () {
-                              setState(
-                                  () => _obscurePassword = !_obscurePassword);
-                            },
-                            onSignIn: _signInWithEmail,
-                            onCreateAccount: _openSignUpScreen,
-                            onForgotPassword: _showResetPasswordDialog,
-                          ),
-                          phoneForm: _PhoneLoginForm(
-                            phoneController: _phoneController,
-                            smsCodeController: _smsCodeController,
-                            handle: _phoneHandle,
-                            isLoading: _isLoading,
-                            onSendCode: _startPhoneSignIn,
-                            onVerifyCode: _confirmSmsCode,
-                            onResendCode: _resendCode,
-                          ),
-                        ),
-                        if (_errorMessage != null) ...[
-                          const SizedBox(height: 16),
-                          FeedbackBanner(
-                            message: _errorMessage!,
-                            variant: FeedbackBannerVariant.error,
-                          ),
-                        ],
-                        if (_statusMessage != null) ...[
-                          const SizedBox(height: 16),
-                          FeedbackBanner(
-                            message: _statusMessage!,
-                            variant: _statusVariant,
-                          ),
-                        ],
-                        const SizedBox(height: 24),
-                        Text(
-                          'By continuing, you agree to our Terms of Service and confirm you have read our Privacy Policy.',
-                          style: theme.textTheme.bodySmall,
-                          textAlign: TextAlign.center,
-                        ),
-                      ],
+                      ),
                     ),
                   ),
                 ),
-              ),
-            ),
+              );
+            },
           ),
         ),
       ),
@@ -369,10 +390,12 @@ class _AuthTabs extends StatelessWidget {
   const _AuthTabs({
     required this.emailForm,
     required this.phoneForm,
+    required this.tabHeight,
   });
 
   final Widget emailForm;
   final Widget phoneForm;
+  final double tabHeight;
 
   @override
   Widget build(BuildContext context) {
@@ -412,7 +435,7 @@ class _AuthTabs extends StatelessWidget {
           ),
           const SizedBox(height: 16),
           SizedBox(
-            height: 320,
+            height: tabHeight,
             child: TabBarView(
               children: [
                 emailForm,
