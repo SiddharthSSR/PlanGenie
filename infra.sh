@@ -1,5 +1,5 @@
 # Set project/region
-export PROJECT_ID=plangenie-472417
+export PROJECT_ID=plangenie-
 export REGION=asia-south1
 gcloud config set project $PROJECT_ID
 
