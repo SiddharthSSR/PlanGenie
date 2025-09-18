@@ -1,4 +1,6 @@
 import os
+from typing import Literal
+
 from fastapi import FastAPI
 from pydantic import BaseModel, Field
 from google.cloud import secretmanager
@@ -10,6 +12,14 @@ from services.store import save_itinerary
 PROJECT_ID = os.environ.get("FIRESTORE_PROJECT")
 REGION = os.environ.get("VERTEX_REGION", "asia-south1")
 
+MOOD_LABELS = {
+    1: "chill",
+    2: "balanced",
+    3: "adventurous",
+    4: "party",
+}
+
+
 # Lazy secrets fetch
 def access_secret(name: str) -> str:
     client = secretmanager.SecretManagerServiceClient()
@@ -18,9 +28,11 @@ def access_secret(name: str) -> str:
     path = client.secret_version_path(PROJECT_ID, name, "latest")
     return client.access_secret_version(request={"name": path}).payload.data.decode()
 
+
 MAPS_API_KEY = None
 
 app = FastAPI(title="Planner API")
+
 
 class PlanRequest(BaseModel):
     origin: str = Field(..., examples=["DEL"])
@@ -29,12 +41,17 @@ class PlanRequest(BaseModel):
     endDate: str
     pax: int = 2
     budget: int = 25000
-    themes: list[str] = []
-    mood: float = 0.5
+    mood: Literal[1, 2, 3, 4] = Field(
+        2,
+        examples=[2],
+        description="1=chill, 2=balanced, 3=adventurous, 4=party",
+    )
+
 
 @app.get("/")
 def root():
     return {"ok": True, "msg": "Planner API up. Use POST /plan"}
+
 
 @app.on_event("startup")
 def boot():
@@ -56,30 +73,44 @@ def boot():
 
 @app.post("/plan")
 def plan(req: PlanRequest):
-    # 1) Ask Gemini for a minimal day plan
-    draft = draft_itinerary_with_gemini(req.model_dump())
+    prefs = req.model_dump()
+    prefs["moodLabel"] = MOOD_LABELS.get(req.mood, "balanced")
+
+    # 1) Ask Gemini for a multi-day plan
+    draft = draft_itinerary_with_gemini(prefs)
 
     city = draft.get("city") or req.destination
-    day = {
-        "date": draft.get("date") or req.startDate,
-        "blocks": draft.get("blocks", []),
-    }
+    days = draft.get("days") if isinstance(draft.get("days"), list) else []
+
+    if not days and draft.get("blocks"):
+        days = [
+            {
+                "date": draft.get("date") or req.startDate,
+                "blocks": draft.get("blocks", []),
+            }
+        ]
+    if not days:
+        days = [{"date": req.startDate, "blocks": []}]
 
     itinerary = {
-        "prefs": req.model_dump(),
-        "itineraryDraft": {"city": city, "days": [day]},
+        "prefs": prefs,
+        "itineraryDraft": {"city": city, "days": days},
         "status": "DRAFT",
     }
 
-    # 2) Enrich with Maps (guarded try/except so we never 500)
+    # 2) Enrich with Maps (guarded so we never 500)
     if MAPS_API_KEY:
-        try:
-            itinerary["itineraryDraft"]["days"][0] = enrich_with_maps(
-                city, itinerary["itineraryDraft"]["days"][0], MAPS_API_KEY
-            )
-        except Exception as e:
-            # Optional: log error, but continue with the draft
-            print(f"[maps_enrich] warning: {e}")
+        enriched_days = []
+        for day in itinerary["itineraryDraft"]["days"]:
+            try:
+                enriched_days.append(
+                    enrich_with_maps(city, day, MAPS_API_KEY)
+                )
+            except Exception as e:
+                print(f"[maps_enrich] warning: {e}")
+                enriched_days.append(day)
+        itinerary["itineraryDraft"]["days"] = enriched_days
+
     if not PROJECT_ID:
         raise RuntimeError("FIRESTORE_PROJECT env var is required")
     # 3) Store in Firestore
