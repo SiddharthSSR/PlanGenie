@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 
 const _gradientStart = Color(0xFF0B1120);
@@ -340,6 +342,20 @@ class _AnimatedFeatureIcon extends StatelessWidget {
       curve: Curves.easeOutCubic,
       builder: (context, value, child) {
         final fill = value.clamp(0.0, 1.0);
+
+        if (icon == Icons.fingerprint) {
+          return Transform.scale(
+            scale: 0.94 + (0.06 * fill),
+            child: CustomPaint(
+              size: const Size.square(160),
+              painter: _FingerprintPainter(
+                progress: fill,
+                accentColor: accentColor,
+              ),
+            ),
+          );
+        }
+
         final baseColor = Colors.white.withOpacity(0.18);
         final iconColor = Color.lerp(baseColor, accentColor, fill) ?? baseColor;
 
@@ -424,4 +440,143 @@ class _OnboardingContent {
   final IconData icon;
   final Color accentColor;
   final String semanticLabel;
+}
+
+class _FingerprintPainter extends CustomPainter {
+  _FingerprintPainter({
+    required this.progress,
+    required this.accentColor,
+  });
+
+  final double progress;
+  final Color accentColor;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final double stroke = size.width * 0.05;
+    final Paint basePaint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round
+      ..strokeWidth = stroke
+      ..color = Colors.white.withOpacity(0.18);
+
+    final Paint accentPaint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round
+      ..strokeWidth = stroke
+      ..color = accentColor;
+
+    final paths = _buildFingerprintPaths(size);
+
+    for (final path in paths) {
+      canvas.drawPath(path, basePaint);
+    }
+
+    final total = paths.length;
+    for (var i = 0; i < total; i++) {
+      final double segmentStart = i / total;
+      final double segmentEnd = (i + 1) / total;
+      final double segmentProgress =
+          ((progress - segmentStart) / (segmentEnd - segmentStart))
+              .clamp(0.0, 1.0);
+      if (segmentProgress <= 0) {
+        continue;
+      }
+      _drawPartialPath(canvas, paths[i], accentPaint, segmentProgress);
+    }
+  }
+
+  List<Path> _buildFingerprintPaths(Size size) {
+    final double w = size.width;
+    final Offset center = Offset(w / 2, w * 0.58);
+
+    Path arc(double radiusFactor, double verticalShift, double startFactor,
+        double sweepFactor) {
+      final double radius = w * radiusFactor;
+      final Rect rect = Rect.fromCircle(
+        center: center.translate(0, verticalShift * w),
+        radius: radius,
+      );
+      return Path()..addArc(rect, math.pi * startFactor, math.pi * sweepFactor);
+    }
+
+    final List<Path> paths = [
+      arc(0.46, -0.02, 1.12, 1.55),
+      arc(0.38, 0.02, 1.08, 1.55),
+      arc(0.30, 0.06, 1.04, 1.58),
+      arc(0.22, 0.10, 1.00, 1.62),
+      arc(0.15, 0.14, 0.98, 1.66),
+    ];
+
+    final Path leftHook = Path()
+      ..moveTo(center.dx - w * 0.26, center.dy + w * 0.20)
+      ..quadraticBezierTo(
+        center.dx - w * 0.36,
+        center.dy + w * 0.06,
+        center.dx - w * 0.18,
+        center.dy - w * 0.14,
+      );
+
+    final Path rightHook = Path()
+      ..moveTo(center.dx + w * 0.26, center.dy + w * 0.20)
+      ..quadraticBezierTo(
+        center.dx + w * 0.36,
+        center.dy + w * 0.06,
+        center.dx + w * 0.18,
+        center.dy - w * 0.12,
+      );
+
+    final Path innerLoop = Path()
+      ..moveTo(center.dx, center.dy + w * 0.05)
+      ..quadraticBezierTo(
+        center.dx + w * 0.10,
+        center.dy,
+        center.dx + w * 0.09,
+        center.dy - w * 0.14,
+      )
+      ..quadraticBezierTo(
+        center.dx + w * 0.02,
+        center.dy - w * 0.24,
+        center.dx,
+        center.dy - w * 0.24,
+      )
+      ..quadraticBezierTo(
+        center.dx - w * 0.09,
+        center.dy - w * 0.22,
+        center.dx - w * 0.10,
+        center.dy - w * 0.08,
+      );
+
+    final Path spine = Path()
+      ..moveTo(center.dx, center.dy + w * 0.14)
+      ..quadraticBezierTo(
+        center.dx + w * 0.02,
+        center.dy - w * 0.02,
+        center.dx,
+        center.dy - w * 0.26,
+      );
+
+    paths.addAll([leftHook, rightHook, innerLoop, spine]);
+    return paths;
+  }
+
+  void _drawPartialPath(
+      Canvas canvas, Path path, Paint paint, double progress) {
+    for (final metric in path.computeMetrics()) {
+      final double length = metric.length * progress;
+      if (length <= 0) {
+        continue;
+      }
+      final Path extract = metric.extractPath(0, length);
+      canvas.drawPath(extract, paint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _FingerprintPainter oldDelegate) {
+    return oldDelegate.progress != progress ||
+        oldDelegate.accentColor != accentColor;
+  }
 }
