@@ -1,4 +1,4 @@
-import 'package:firebase_auth/firebase_auth.dart';
+﻿import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 import 'package:plangenie/src/widgets/feedback_banner.dart';
@@ -589,3 +589,4 @@ class _PhoneLoginForm extends StatelessWidget {
     );
   }
 }
+
