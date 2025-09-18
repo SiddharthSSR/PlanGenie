@@ -1,10 +1,9 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:plangenie/screens/onboarding.dart';
-
-import '../../home/home_screen.dart';
-import '../providers/auth_providers.dart';
+import 'package:plangenie/src/features/auth/providers/auth_providers.dart';
+import 'package:plangenie/src/features/home/home_screen.dart';
 
 class AuthGate extends ConsumerWidget {
   const AuthGate({super.key});
