@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:plangenie/screens/onboarding.dart';
 import 'package:plangenie/src/features/auth/providers/auth_providers.dart';
-import 'package:plangenie/src/features/home/home_screen.dart';
+import 'package:plangenie/screens/home.dart';
 
 class AuthGate extends ConsumerWidget {
   const AuthGate({super.key});
@@ -13,7 +13,7 @@ class AuthGate extends ConsumerWidget {
     final authState = ref.watch(authStateChangesProvider);
 
     return authState.when(
-      data: (user) => user != null ? const HomeScreen() : const OnboardingScreen(),
+      data: (user) => user != null ? const HomePage() : const OnboardingScreen(),
       loading: () => const Scaffold(
         body: Center(child: CircularProgressIndicator()),
       ),

@@ -27,6 +27,7 @@ Environment variables (can be set locally or via Cloud Run/App Engine deployment
 | `VERTEX_REGION` | Vertex AI region (defaults to `asia-south1`). |
 | `MAPS_API_KEY` | Google Maps API key (optional if stored in Secret Manager). |
 | `GOOGLE_APPLICATION_CREDENTIALS` | Path to service-account JSON (local development). |
+| `PLANGENIE_CORS_ORIGINS` | Comma-separated list of allowed origins for CORS (defaults to `*`). |
 
 Secrets:
 - Optional Secret Manager secret `MAPS_API_KEY` in the project; fetched on startup if the env var is absent.
