@@ -1,9 +1,10 @@
-﻿import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 import 'package:plangenie/src/widgets/feedback_banner.dart';
 
 import 'services/auth_service.dart';
+import 'widgets/auth_gate.dart';
 import 'signup_screen.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -274,9 +275,15 @@ class _LoginScreenState extends State<LoginScreen> {
 
     try {
       final result = await action();
-      if (result is UserCredential) {
-        _showStatus(successMessage ??
-            'Welcome back, ${result.user?.displayName ?? 'traveler'}!');
+      if (result is UserCredential && mounted) {
+        if (successMessage != null) {
+          _showStatus(successMessage);
+        }
+        Navigator.of(context).pushAndRemoveUntil(
+          MaterialPageRoute(builder: (_) => const AuthGate()),
+          (route) => false,
+        );
+        return;
       }
     } on _PendingPhoneAuth {
       // Intermediate step: wait for user to enter SMS code.
@@ -589,4 +596,3 @@ class _PhoneLoginForm extends StatelessWidget {
     );
   }
 }
-
