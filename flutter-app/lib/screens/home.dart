@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:plangenie/src/features/home/home_screen.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -172,6 +173,15 @@ class _HomePageState extends State<HomePage> {
               child: _ProfileAction(),
             ),
           ],
+        ),
+        floatingActionButton: FloatingActionButton.small(
+          tooltip: 'Open backend demo',
+          onPressed: () {
+            Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const HomeScreen()),
+            );
+          },
+          child: const Icon(Icons.arrow_forward_ios, size: 18),
         ),
         body: Stack(
           children: [
