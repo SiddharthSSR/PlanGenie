@@ -2,6 +2,7 @@ import os
 from typing import Literal
 
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from google.cloud import secretmanager
 
@@ -32,6 +33,17 @@ def access_secret(name: str) -> str:
 MAPS_API_KEY = None
 
 app = FastAPI(title="Planner API")
+
+raw_origins = os.getenv("PLANGENIE_CORS_ORIGINS")
+allowed_origins = [o.strip() for o in raw_origins.split(",") if o.strip()] if raw_origins else ["*"]
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=allowed_origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 
 
 class PlanRequest(BaseModel):
