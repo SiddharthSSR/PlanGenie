@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 
 import 'package:plangenie/screens/onboarding.dart';
 
-import '../../home/home_screen.dart';
+import 'package:plangenie/screens/home.dart';
 
 class AuthGate extends StatelessWidget {
   const AuthGate({super.key});
@@ -20,7 +20,7 @@ class AuthGate extends StatelessWidget {
         }
 
         if (snapshot.hasData) {
-          return const HomeScreen();
+          return const HomePage();
         }
 
         return const OnboardingScreen();

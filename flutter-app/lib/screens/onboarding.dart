@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 
 import 'package:plangenie/src/features/auth/login_screen.dart';
 import 'package:plangenie/src/features/auth/signup_screen.dart';
@@ -185,7 +185,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                           child: Text(
                             'Log in',
                             style: theme.textTheme.labelLarge?.copyWith(
-                              color: Colors.white.withOpacity(0.92),
+                              color: Colors.white.withValues(alpha: 0.92),
                               fontWeight: FontWeight.w600,
                             ),
                           ),
@@ -212,7 +212,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                                 padding: const EdgeInsets.symmetric(
                                   vertical: 18,
                                 ),
-                                backgroundColor: Colors.white.withOpacity(0.12),
+                                backgroundColor:
+                                    Colors.white.withValues(alpha: 0.12),
                                 foregroundColor: Colors.white,
                                 shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(18),
@@ -325,7 +326,7 @@ class _OnboardingTextBlock extends StatelessWidget {
           content.body,
           textAlign: TextAlign.center,
           style: (textTheme.bodyLarge ?? const TextStyle()).copyWith(
-            color: onPrimary.withOpacity(0.88),
+            color: onPrimary.withValues(alpha: 0.88),
             height: 1.55,
             fontWeight: FontWeight.w400,
           ),
@@ -355,7 +356,7 @@ class _AnimatedFeatureIcon extends StatelessWidget {
       curve: Curves.easeOutCubic,
       builder: (context, value, child) {
         final fill = value.clamp(0.0, 1.0);
-        final baseColor = Colors.white.withOpacity(0.18);
+        final baseColor = Colors.white.withValues(alpha: 0.18);
         final iconColor = Color.lerp(baseColor, accentColor, fill) ?? baseColor;
 
         return Transform.scale(
@@ -395,7 +396,7 @@ class _PageIndicator extends StatelessWidget {
         final double height = 10 + (14 * t);
         final double width = 8 + (4 * t);
         final Color color = Color.lerp(
-              Colors.white.withOpacity(0.25),
+              Colors.white.withValues(alpha: 0.25),
               Colors.white,
               t,
             ) ??
@@ -413,7 +414,7 @@ class _PageIndicator extends StatelessWidget {
             boxShadow: [
               if (index == currentIndex)
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.1 * t),
+                  color: Colors.black.withValues(alpha: 0.1 * t),
                   blurRadius: 8,
                   offset: const Offset(0, 2),
                 ),
@@ -440,4 +441,3 @@ class _OnboardingContent {
   final Color accentColor;
   final String semanticLabel;
 }
-
