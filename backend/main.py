@@ -7,8 +7,13 @@ from pydantic import BaseModel, Field
 from google.cloud import secretmanager
 
 from services.gemini import init_vertex, draft_itinerary_with_gemini
-from services.maps import enrich_with_maps
+from services.maps import enrich_with_maps, get_destination_hero_image
 from services.store import save_itinerary
+
+# NEW: imports for proxy route
+from fastapi import Response, HTTPException
+from urllib.parse import quote
+import httpx
 
 PROJECT_ID = os.environ.get("FIRESTORE_PROJECT")
 REGION = os.environ.get("VERTEX_REGION", "asia-south1")
@@ -43,11 +48,11 @@ origin_regex = os.getenv(
 allowed_origins = [o.strip() for o in raw_origins.split(",") if o.strip()]
 
 cors_kwargs: dict[str, Any] = {
-    "allow_methods": ["*"],
-    "allow_headers": ["*"],
-    "expose_headers": ["*"],
-    "allow_credentials": True,
-    "max_age": 86400,
+    "allow_methods": ["*"],             # GET, POST, PUT, DELETE, OPTIONS, ...
+    "allow_headers": ["*"],             # Authorization, Content-Type, custom headers
+    "expose_headers": ["*"],            # if frontend reads custom response headers
+    "allow_credentials": True,          # needed if you use cookies / withCredentials
+    "max_age": 86400,                   # cache preflight for 24h
 }
 
 # Prefer regex for localhost dev; fall back to explicit list for prod
@@ -88,13 +93,18 @@ def boot():
     init_vertex(PROJECT_ID, REGION)
 
     # Prefer env var if injected via --set-secrets or --set-env-vars
-    MAPS_API_KEY = os.getenv("MAPS_API_KEY")
+    # MAPS_API_KEY = os.getenv("MAPS_API_KEY")
     if not MAPS_API_KEY:
         try:
             MAPS_API_KEY = access_secret("MAPS_API_KEY")
         except Exception as e:
             print(f"[secret] MAPS_API_KEY not available: {e}")
             MAPS_API_KEY = None
+
+    if MAPS_API_KEY:
+        print("[boot] MAPS_API_KEY loaded")
+    else:
+        print("[boot] MAPS_API_KEY is not configured")
 
 
 @app.post("/plan")
@@ -118,12 +128,25 @@ def plan(req: PlanRequest):
     if not days:
         days = [{"date": req.startDate, "blocks": []}]
 
-    # --- keep total_budget from Gemini (do not drop it) ---
+    # Keep total_budget, destination blurb
     itinerary_draft = {"city": city, "days": days}
+
     total_budget = draft.get("total_budget")
     if total_budget is not None:
         itinerary_draft["total_budget"] = total_budget
-    # ------------------------------------------------------
+
+    # One-line destination description from Gemini
+    blurb = draft.get("destination_blurb") or draft.get("destinationBlurb")
+    if blurb:
+        itinerary_draft["destinationBlurb"] = str(blurb).strip()[:140]
+
+    # Destination hero image via PROXY (so the browser never sees the key)
+    if MAPS_API_KEY:
+        # Always point the client to our proxy route; proxy will fetch from Google server-side
+        itinerary_draft["imageUrl"] = f"/media/destination?q={quote(city)}"
+        print(f"[hero_image] proxied imageUrl set for {city}")
+    else:
+        print("[hero_image] MAPS_API_KEY is not configured")
 
     itinerary = {
         "prefs": prefs,
@@ -136,7 +159,9 @@ def plan(req: PlanRequest):
         enriched_days = []
         for day in itinerary["itineraryDraft"]["days"]:
             try:
-                enriched_days.append(enrich_with_maps(city, day, MAPS_API_KEY))
+                enriched_days.append(
+                    enrich_with_maps(city, day, MAPS_API_KEY)
+                )
             except Exception as e:
                 print(f"[maps_enrich] warning: {e}")
                 enriched_days.append(day)
@@ -148,5 +173,36 @@ def plan(req: PlanRequest):
     # 3) Store in Firestore
     trip_id = save_itinerary(PROJECT_ID, itinerary)
 
-    # Return draft with total_budget included
+    # Return draft with total_budget + destinationBlurb + imageUrl included
     return {"tripId": trip_id, "draft": itinerary["itineraryDraft"]}
+
+
+# --- Proxy route: serves destination image from your API (hides Google key) ---
+@app.get("/media/destination")
+async def destination_image(q: str):
+    if not MAPS_API_KEY:
+        raise HTTPException(status_code=404, detail="Maps key not configured")
+
+    # Build Google image URL server-side (includes the key) using your helper
+    url = get_destination_hero_image(q, MAPS_API_KEY)
+    if not url:
+        raise HTTPException(status_code=404, detail="No image for destination")
+
+    # Fetch bytes and stream back to the browser
+    try:
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            r = await client.get(url)
+            if r.status_code != 200:
+                print(f"[media_proxy] upstream {r.status_code} for {q}: {url[:100]}...")
+                raise HTTPException(status_code=502, detail=f"Upstream {r.status_code}")
+            headers = {"Cache-Control": "public, max-age=86400"}
+            return Response(
+                content=r.content,
+                media_type=r.headers.get("content-type", "image/jpeg"),
+                headers=headers,
+            )
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"[media_proxy] error for {q}: {e}")
+        raise HTTPException(status_code=502, detail="Image proxy error")

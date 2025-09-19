@@ -14,12 +14,13 @@ def draft_itinerary_with_gemini(prefs: Dict) -> Dict:
     """
     Ask Gemini for a multi-day itinerary with three activities per day.
     Return a normalized itinerary skeleton. Ensures a computed total_budget
-    that is derived from the itinerary (not just echoing user input).
+    that is derived from the itinerary (not just echoing user input), and
+    includes a one-line destination_blurb.
     """
     model = GenerativeModel("gemini-1.5-pro")
     mood_label = prefs.get("moodLabel", "balanced")
 
-    # Prompt keeps your existing structure, adds clear budgeting instruction.
+    # Prompt keeps your existing structure, adds clear budgeting + blurb instruction.
     prompt = f"""
     You are an expert travel planner.
 
@@ -34,10 +35,12 @@ def draft_itinerary_with_gemini(prefs: Dict) -> Dict:
     - Also include a numeric field 'total_budget' (INR) for the full trip, computed from your proposed plan.
       Do NOT simply repeat the user's provided budget; calculate based on the itinerary (it may be higher or lower).
       Prefer keeping total_budget ≤ the provided budget where possible.
+    - Include a single-sentence 'destination_blurb' (≤140 chars) that describes {prefs['destination']} in a punchy, traveler-friendly way.
 
     Return strict JSON with the structure:
     {{
       "city": "...",
+      "destination_blurb": "...",
       "days": [
         {{
           "date": "YYYY-MM-DD",
@@ -89,6 +92,11 @@ def draft_itinerary_with_gemini(prefs: Dict) -> Dict:
             except Exception:
                 pass
 
+        # Ensure a destination_blurb exists (fallback if model missed it)
+        if not normalized.get("destination_blurb"):
+            city = normalized.get("city") or prefs.get("destination", "the destination")
+            normalized["destination_blurb"] = f"Discover {city}'s top sights, local flavors, and vibrant culture in a balanced, time-smart trip."
+
         return normalized
 
     except Exception as exc:
@@ -98,7 +106,7 @@ def draft_itinerary_with_gemini(prefs: Dict) -> Dict:
 
 def _normalize_response(raw: Dict, prefs: Dict) -> Dict:
     """
-    Preserve city, days (with blocks), and keep total_budget if the model supplied it.
+    Preserve city, days (with blocks), and keep total_budget + destination_blurb if supplied.
     """
     city = raw.get("city") or prefs.get("destination")
     normalized_days: List[Dict] = []
@@ -130,6 +138,12 @@ def _normalize_response(raw: Dict, prefs: Dict) -> Dict:
     # Preserve total_budget if present (we may still override later)
     if "total_budget" in raw:
         out["total_budget"] = raw.get("total_budget")
+
+    # Preserve a one-line destination blurb if present (accept both snake/camel)
+    blurb = raw.get("destination_blurb") or raw.get("destinationBlurb")
+    if blurb:
+        # hard-trim to 140 chars just in case
+        out["destination_blurb"] = str(blurb).strip()[:140]
 
     return out
 
@@ -199,6 +213,7 @@ def _fallback_itinerary(prefs: Dict) -> Dict:
     itin = {
         "city": destination,
         "days": _fallback_days(prefs, destination),
+        "destination_blurb": f"Discover {destination}'s highlights with a smart mix of sights, food, and local culture.",
     }
     itin["total_budget"] = _estimate_total_budget_from_blocks(itin, prefs)
     return itin
