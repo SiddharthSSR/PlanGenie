@@ -1,9 +1,12 @@
 # PlanGenie
 
-PlanGenie is an AI-assisted travel planning experience created for the hackathon. The repository collects the visual assets, interactive mockups, and Next.js prototype that inform the product direction.
+PlanGenie is an AI-assisted travel planning experience created for the hackathon. The repository collects the visual assets, interactive mockups, the production FastAPI backend, and the Flutter client.
 
 ## Repository Structure
 - `assets/` – High-fidelity visuals and diagrams used for pitches and documentation.
+- `backend/` – FastAPI service that drafts itineraries via Vertex AI, enriches with Maps, and stores results in Firestore.
+- `flutter-app/` – Flutter client that handles auth and connects to the backend.
+- `infra.sh` – Helper script for container builds and Cloud Run deployment.
 - `mockup/` – Vite + React click-through mockup of the core planning flow.
 - `mockup-next/` – Next.js prototype exploring the production-ready app structure.
 
@@ -45,3 +48,7 @@ Both projects are self-contained. The commands above start local development ser
 1. Update or add new assets under `assets/` with clear naming.
 2. Capture any major UX or architecture changes within the README to keep documents in sync.
 3. Use feature branches and open pull requests for review.
+
+## Full-stack setup
+
+For step-by-step backend and Flutter integration guidance, see `flutter-app/README.md`.

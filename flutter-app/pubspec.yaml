@@ -1,4 +1,4 @@
-name: plangenie
+﻿name: plangenie
 description: Flutter client for the PlanGenie travel planning experience.
 publish_to: "none"
 version: 0.1.0+1
@@ -10,10 +10,13 @@ dependencies:
   flutter:
     sdk: flutter
   cupertino_icons: ^1.0.6
+  google_fonts: ^6.2.1
   firebase_core: ^4.1.0
   firebase_auth: ^6.0.2
   google_sign_in: ^7.2.0
   flutter_riverpod: ^2.5.1
+  http: ^1.2.1
+  shared_preferences: ^2.2.2
 
 dev_dependencies:
   flutter_test:

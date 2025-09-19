@@ -2,6 +2,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:plangenie/src/theme/app_theme.dart';
 import 'package:plangenie/src/widgets/feedback_banner.dart';
 
 import 'providers/auth_providers.dart';
@@ -43,121 +44,152 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final palette = theme.extension<PlanGeniePalette>();
     final mediaQuery = MediaQuery.of(context);
     final isWideLayout = mediaQuery.size.width >= 720;
-    final maxContentWidth = isWideLayout ? 520.0 : 420.0;
-    final horizontalPadding = isWideLayout ? (mediaQuery.size.width - maxContentWidth) / 2 : 24.0;
-    final verticalPadding = mediaQuery.size.height >= 840 ? 40.0 : 24.0;
+    final maxContentWidth = isWideLayout ? 560.0 : 440.0;
+    final topPadding = mediaQuery.size.height >= 840 ? 48.0 : 28.0;
+    final accentColor = palette?.primaryIndicator ?? theme.colorScheme.primary;
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Create your account'),
-      ),
-      body: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: [
-              theme.colorScheme.primaryContainer
-                  .withAlpha((0.35 * 255).round()),
-              theme.colorScheme.surface,
-            ],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
+    final containerRadius = BorderRadius.circular(32);
+
+    return SafeArea(
+      child: AnimatedPadding(
+        duration: const Duration(milliseconds: 250),
+        curve: Curves.easeOutCubic,
+        padding: EdgeInsets.only(
+          left: 24,
+          right: 24,
+          top: topPadding,
+          bottom: mediaQuery.viewInsets.bottom + 24,
         ),
-        child: SafeArea(
-          child: LayoutBuilder(
-            builder: (context, constraints) {
-              final effectiveHorizontal = constraints.maxWidth >= maxContentWidth
-                  ? horizontalPadding
-                  : 24.0;
-
-              return Center(
-                child: SingleChildScrollView(
-                  padding: EdgeInsets.symmetric(
-                    horizontal: effectiveHorizontal,
-                    vertical: verticalPadding,
+        child: Center(
+          child: ConstrainedBox(
+            constraints: BoxConstraints(maxWidth: maxContentWidth),
+            child: Material(
+              color: theme.cardColor,
+              elevation: 20,
+              borderRadius: containerRadius,
+              shadowColor: accentColor.withValues(alpha: 0.18),
+              child: ClipRRect(
+                borderRadius: containerRadius,
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [
+                        palette?.backgroundStart ??
+                            theme.colorScheme.primaryContainer
+                                .withValues(alpha: 0.32),
+                        palette?.backgroundEnd ?? theme.colorScheme.surface,
+                      ],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
                   ),
-                  child: ConstrainedBox(
-                    constraints: BoxConstraints(maxWidth: maxContentWidth),
-                    child: Card(
-                      elevation: 8,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(28),
-                      ),
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 24,
-                          vertical: 32,
-                        ),
-                        child: Form(
-                          key: _formKey,
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            mainAxisSize: MainAxisSize.min,
+                  child: SingleChildScrollView(
+                    padding: EdgeInsets.only(
+                      left: 28,
+                      right: 28,
+                      top: 32,
+                      bottom: 32 + mediaQuery.viewInsets.bottom * 0.08,
+                    ),
+                    child: Form(
+                      key: _formKey,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text(
-                                'Create your PlanGenie account',
-                                style: theme.textTheme.headlineSmall,
-                              ),
-                              const SizedBox(height: 12),
-                              Text(
-                                'Unlock personalized trips, collaborative planning, and synced itineraries across devices.',
-                                style: theme.textTheme.bodyMedium,
-                              ),
-                              if (_errorMessage != null) ...[
-                                const SizedBox(height: 16),
-                                FeedbackBanner(
-                                  message: _errorMessage!,
-                                  variant: FeedbackBannerVariant.error,
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      'Create your PlanGenie account',
+                                      style: theme.textTheme.headlineSmall,
+                                    ),
+                                    const SizedBox(height: 8),
+                                    Text(
+                                      'Unlock personalized trips, collaborative planning, and synced itineraries across devices.',
+                                      style: theme.textTheme.bodyMedium,
+                                    ),
+                                  ],
                                 ),
-                              ],
-                              const SizedBox(height: 24),
-                              TextFormField(
-                                controller: _fullNameController,
-                                textInputAction: TextInputAction.next,
-                                autofillHints: const [AutofillHints.name],
-                                decoration: const InputDecoration(
-                                  labelText: 'Full name',
-                                  prefixIcon: Icon(Icons.person_outline),
-                                ),
-                                validator: (value) {
-                                  if (value == null || value.trim().isEmpty) {
-                                    return 'Enter your full name.';
-                                  }
-                                  if (value.trim().split(' ').length < 2) {
-                                    return 'Add first and last name for a richer profile.';
-                                  }
-                                  return null;
-                                },
                               ),
-                              const SizedBox(height: 16),
-                              TextFormField(
-                                controller: _emailController,
-                                keyboardType: TextInputType.emailAddress,
-                                textInputAction: TextInputAction.next,
-                                autofillHints: const [AutofillHints.email],
-                                decoration: const InputDecoration(
-                                  labelText: 'Email address',
-                                  prefixIcon: Icon(Icons.alternate_email),
+                              IconButton.outlined(
+                                tooltip: 'Close sign up',
+                                onPressed: _isLoading
+                                    ? null
+                                    : () => Navigator.of(context).pop(),
+                                icon: const Icon(Icons.close),
+                                style: IconButton.styleFrom(
+                                  shape: const CircleBorder(),
+                                  padding: const EdgeInsets.all(10),
+                                  foregroundColor: accentColor,
+                                  side: BorderSide(
+                                    color: accentColor.withValues(alpha: 0.35),
+                                  ),
                                 ),
-                                validator: (value) {
-                                  if (value == null || value.trim().isEmpty) {
-                                    return 'Enter an email address.';
-                                  }
-                                  final emailPattern = RegExp(r'^.+@.+\..+$');
-                                  if (!emailPattern.hasMatch(value.trim())) {
-                                    return 'Enter a valid email.';
-                                  }
-                                  return null;
-                                },
                               ),
-                              const SizedBox(height: 16),
-                              TextFormField(
+                            ],
+                          ),
+                          if (_errorMessage != null) ...[
+                            const SizedBox(height: 16),
+                            FeedbackBanner(
+                              message: _errorMessage!,
+                              variant: FeedbackBannerVariant.error,
+                            ),
+                          ],
+                          const SizedBox(height: 24),
+                          TextFormField(
+                            controller: _fullNameController,
+                            textInputAction: TextInputAction.next,
+                            autofillHints: const [AutofillHints.name],
+                            decoration: const InputDecoration(
+                              labelText: 'Full name',
+                              prefixIcon: Icon(Icons.person_outline),
+                            ),
+                            validator: (value) {
+                              if (value == null || value.trim().isEmpty) {
+                                return 'Enter your full name.';
+                              }
+                              if (value.trim().split(' ').length < 2) {
+                                return 'Add first and last name for a richer profile.';
+                              }
+                              return null;
+                            },
+                          ),
+                          const SizedBox(height: 16),
+                          TextFormField(
+                            controller: _emailController,
+                            keyboardType: TextInputType.emailAddress,
+                            textInputAction: TextInputAction.next,
+                            autofillHints: const [AutofillHints.email],
+                            decoration: const InputDecoration(
+                              labelText: 'Email address',
+                              prefixIcon: Icon(Icons.alternate_email),
+                            ),
+                            validator: (value) {
+                              if (value == null || value.trim().isEmpty) {
+                                return 'Enter an email address.';
+                              }
+                              final emailPattern = RegExp(r'^.+@.+\..+$');
+                              if (!emailPattern.hasMatch(value.trim())) {
+                                return 'Enter a valid email.';
+                              }
+                              return null;
+                            },
+                          ),
+                          const SizedBox(height: 16),
+                          TextFormField(
                             controller: _phoneController,
                             keyboardType: TextInputType.phone,
                             textInputAction: TextInputAction.next,
-                            autofillHints: const [AutofillHints.telephoneNumber],
+                            autofillHints: const [
+                              AutofillHints.telephoneNumber
+                            ],
                             decoration: const InputDecoration(
                               labelText: 'Phone number',
                               hintText: '+1 555 010 1234',
@@ -186,10 +218,13 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
                               labelText: 'Password',
                               prefixIcon: const Icon(Icons.lock_outline),
                               suffixIcon: IconButton(
-                                onPressed: () =>
-                                    setState(() => _obscurePassword = !_obscurePassword),
+                                onPressed: () => setState(
+                                  () => _obscurePassword = !_obscurePassword,
+                                ),
                                 icon: Icon(
-                                  _obscurePassword ? Icons.visibility : Icons.visibility_off,
+                                  _obscurePassword
+                                      ? Icons.visibility
+                                      : Icons.visibility_off,
                                 ),
                               ),
                             ),
@@ -214,10 +249,12 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
                             autofillHints: const [AutofillHints.newPassword],
                             decoration: InputDecoration(
                               labelText: 'Confirm password',
-                              prefixIcon: const Icon(Icons.verified_user_outlined),
+                              prefixIcon:
+                                  const Icon(Icons.verified_user_outlined),
                               suffixIcon: IconButton(
                                 onPressed: () => setState(
-                                  () => _obscureConfirmPassword = !_obscureConfirmPassword,
+                                  () => _obscureConfirmPassword =
+                                      !_obscureConfirmPassword,
                                 ),
                                 icon: Icon(
                                   _obscureConfirmPassword
@@ -241,52 +278,59 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
                             value: _acceptedTerms,
                             onChanged: _isLoading
                                 ? null
-                                : (value) => setState(() => _acceptedTerms = value ?? false),
+                                : (value) => setState(
+                                    () => _acceptedTerms = value ?? false),
                             controlAffinity: ListTileControlAffinity.leading,
                             contentPadding: EdgeInsets.zero,
+                            activeColor: accentColor,
                             title: const Text(
                               'I agree to the Terms of Service and Privacy Policy.',
                             ),
                           ),
-                          const SizedBox(height: 16),
+                          const SizedBox(height: 8),
                           FilledButton(
                             onPressed: _isLoading ? null : _submit,
                             style: FilledButton.styleFrom(
                               padding: const EdgeInsets.symmetric(vertical: 16),
+                              backgroundColor: accentColor,
+                              foregroundColor: Colors.white,
                             ),
                             child: _isLoading
                                 ? const SizedBox(
                                     height: 20,
                                     width: 20,
-                                    child: CircularProgressIndicator(strokeWidth: 2),
+                                    child: CircularProgressIndicator(
+                                        strokeWidth: 2),
                                   )
                                 : const Text('Create account'),
                           ),
                           const SizedBox(height: 12),
                           TextButton(
-                            onPressed: _isLoading ? null : () => Navigator.of(context).pop(),
-                            child: const Text('Back to sign in'),
+                            onPressed: _isLoading
+                                ? null
+                                : () => Navigator.of(context).pop(),
+                            style: TextButton.styleFrom(
+                              foregroundColor: accentColor,
+                              textStyle: theme.textTheme.titleMedium?.copyWith(
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            child:
+                                const Text('Already have an account? Sign in'),
                           ),
-                          const SizedBox(height: 4),
+                          const SizedBox(height: 8),
                           Text(
                             'We’ll verify your email and phone so travel alerts reach you instantly.',
                             style: theme.textTheme.bodySmall,
                             textAlign: TextAlign.center,
                           ),
-                              Text(
-                                'We’ll verify your email and phone so travel alerts reach you instantly.',
-                                style: theme.textTheme.bodySmall,
-                                textAlign: TextAlign.center,
-                              ),
-                            ],
-                          ),
-                        ),
+                        ],
                       ),
                     ),
                   ),
                 ),
-              );
-            },
+              ),
+            ),
           ),
         ),
       ),
