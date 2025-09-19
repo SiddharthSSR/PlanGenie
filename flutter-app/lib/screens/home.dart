@@ -1,7 +1,6 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:plangenie/src/features/auth/providers/auth_providers.dart';
 import 'package:plangenie/src/features/home/data/planner_api.dart';
 import 'package:plangenie/src/features/home/providers/plan_controller.dart';
@@ -224,10 +223,9 @@ class _HomePageState extends ConsumerState<HomePage> {
     );
 
     return Theme(
-      data: ThemeData.light().copyWith(
+      data: parentTheme.copyWith(
         colorScheme: lightScheme,
         scaffoldBackgroundColor: const Color(0xFFF8FAFF),
-        textTheme: GoogleFonts.poppinsTextTheme(parentTheme.textTheme),
         appBarTheme: parentTheme.appBarTheme.copyWith(
           backgroundColor: Colors.transparent,
           foregroundColor: const Color(0xFF0F172A),
