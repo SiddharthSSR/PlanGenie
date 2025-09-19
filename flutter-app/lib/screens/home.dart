@@ -1,24 +1,27 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:plangenie/src/features/home/data/planner_api.dart';
+import 'package:plangenie/src/features/home/providers/plan_controller.dart';
 import 'package:plangenie/src/features/home/home_screen.dart';
 
-class HomePage extends StatefulWidget {
+class HomePage extends ConsumerStatefulWidget {
   const HomePage({super.key});
 
   @override
-  State<HomePage> createState() => _HomePageState();
+  ConsumerState<HomePage> createState() => _HomePageState();
 }
 
-class _HomePageState extends State<HomePage> {
+class _HomePageState extends ConsumerState<HomePage> {
   final TextEditingController _sourceController =
       TextEditingController(text: 'Bengaluru, IN');
   final TextEditingController _destinationController = TextEditingController();
   final TextEditingController _fromDateController = TextEditingController();
   final TextEditingController _toDateController = TextEditingController();
-  final TextEditingController _travellersController =
-      TextEditingController(text: '2 travellers');
   final TextEditingController _budgetController = TextEditingController();
+
+  int _travellerCount = 2;
 
   String _selectedMood = 'Balanced';
   static const List<String> _monthLabels = [
@@ -51,7 +54,6 @@ class _HomePageState extends State<HomePage> {
     _destinationController.dispose();
     _fromDateController.dispose();
     _toDateController.dispose();
-    _travellersController.dispose();
     _budgetController
       ..removeListener(_onBudgetChanged)
       ..dispose();
@@ -66,11 +68,16 @@ class _HomePageState extends State<HomePage> {
   }
 
   DateTime? _parseDate(String value) {
-    final parts = value.split(' ');
+    final normalized = value.trim().replaceAll(RegExp(r'\s+'), ' ');
+    if (normalized.isEmpty) return null;
+    final parts = normalized.split(' ');
     if (parts.length != 3) return null;
     final day = int.tryParse(parts[0]);
-    final monthIndex = _monthLabels.indexOf(parts[1]);
-    final year = int.tryParse(parts[2].replaceAll(",", ""));
+    final monthToken = parts[1].replaceAll(',', '');
+    final monthIndex = _monthLabels.indexWhere(
+      (label) => label.toLowerCase() == monthToken.toLowerCase(),
+    );
+    final year = int.tryParse(parts[2].replaceAll(',', ''));
     if (day == null || monthIndex == -1 || year == null) return null;
     return DateTime(year, monthIndex + 1, day);
   }
@@ -129,6 +136,73 @@ class _HomePageState extends State<HomePage> {
     });
   }
 
+  void _showInlineFeedback(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(content: Text(message)),
+      );
+  }
+
+  int _moodCodeFor(String mood) {
+    switch (mood.toLowerCase()) {
+      case 'chill':
+        return 1;
+      case 'adventurous':
+        return 3;
+      case 'celebratory':
+      case 'party':
+        return 4;
+      case 'balanced':
+      default:
+        return 2;
+    }
+  }
+
+  String _formatForApi(DateTime date) {
+    final month = date.month.toString().padLeft(2, '0');
+    final day = date.day.toString().padLeft(2, '0');
+    return '${date.year}-$month-$day';
+  }
+
+  void _submitPlan() {
+    FocusScope.of(context).unfocus();
+
+    final start = _parseDate(_fromDateController.text);
+    final end = _parseDate(_toDateController.text);
+
+    if (start == null || end == null) {
+      _showInlineFeedback('Please select a valid travel window.');
+      return;
+    }
+
+    if (end.isBefore(start)) {
+      _showInlineFeedback('End date cannot be before the start date.');
+      return;
+    }
+
+    final origin = _sourceController.text.trim();
+    final destination = _destinationController.text.trim();
+
+    if (origin.isEmpty || destination.isEmpty) {
+      _showInlineFeedback('Add both origin and destination.');
+      return;
+    }
+
+    final planRequest = PlanRequest(
+      origin: origin,
+      destination: destination,
+      startDate: _formatForApi(start),
+      endDate: _formatForApi(end),
+      pax: _travellerCount,
+      budget: (_enteredBudget ?? 25000).round(),
+      mood: _moodCodeFor(_selectedMood),
+    );
+
+    ref.read(planControllerProvider.notifier).createPlan(planRequest);
+  }
+
   void _handleConciergePrompt(String prompt) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -141,6 +215,8 @@ class _HomePageState extends State<HomePage> {
   @override
   Widget build(BuildContext context) {
     final parentTheme = Theme.of(context);
+    final planState = ref.watch(planControllerProvider);
+    final isSubmitting = planState.isLoading;
     final seed = parentTheme.colorScheme.primary;
     final lightScheme = ColorScheme.fromSeed(
       seedColor: seed,
@@ -201,14 +277,18 @@ class _HomePageState extends State<HomePage> {
                       destinationController: _destinationController,
                       fromDateController: _fromDateController,
                       toDateController: _toDateController,
-                      travellersController: _travellersController,
+                      travellerCount: _travellerCount,
+                      onTravellerCountChanged: (value) =>
+                          setState(() => _travellerCount = value),
                       budgetController: _budgetController,
                       onFromDateTap: () => _pickDate(isStart: true),
                       onToDateTap: () => _pickDate(isStart: false),
+                      onSubmit: _submitPlan,
+                      isSubmitting: isSubmitting,
                     ),
                   ),
                   const SizedBox(height: 28),
-                  const _FadeSlideIn(child: _ItineraryPreview()),
+                  _FadeSlideIn(child: _ItineraryPreview(state: planState)),
                   const SizedBox(height: 28),
                   const _FadeSlideIn(child: _PopularNowSection()),
                   const SizedBox(height: 28),
@@ -413,10 +493,13 @@ class HeroSection extends StatelessWidget {
     required this.destinationController,
     required this.fromDateController,
     required this.toDateController,
-    required this.travellersController,
+    required this.travellerCount,
+    required this.onTravellerCountChanged,
     required this.budgetController,
     required this.onFromDateTap,
     required this.onToDateTap,
+    required this.onSubmit,
+    required this.isSubmitting,
   });
 
   final String selectedMood;
@@ -425,10 +508,13 @@ class HeroSection extends StatelessWidget {
   final TextEditingController destinationController;
   final TextEditingController fromDateController;
   final TextEditingController toDateController;
-  final TextEditingController travellersController;
+  final int travellerCount;
+  final ValueChanged<int> onTravellerCountChanged;
   final TextEditingController budgetController;
   final VoidCallback onFromDateTap;
   final VoidCallback onToDateTap;
+  final VoidCallback onSubmit;
+  final bool isSubmitting;
 
   @override
   Widget build(BuildContext context) {
@@ -474,7 +560,8 @@ class HeroSection extends StatelessWidget {
             destinationController: destinationController,
             fromDateController: fromDateController,
             toDateController: toDateController,
-            travellersController: travellersController,
+            travellerCount: travellerCount,
+            onTravellerCountChanged: onTravellerCountChanged,
             budgetController: budgetController,
             onFromDateTap: onFromDateTap,
             onToDateTap: onToDateTap,
@@ -504,8 +591,8 @@ class HeroSection extends StatelessWidget {
 
               final ctaButton = SizedBox(
                 width: isCompact ? double.infinity : null,
-                child: FilledButton.icon(
-                  onPressed: () {},
+                child: FilledButton(
+                  onPressed: isSubmitting ? null : onSubmit,
                   style: FilledButton.styleFrom(
                     padding: const EdgeInsets.symmetric(
                         horizontal: 28, vertical: 18),
@@ -522,8 +609,27 @@ class HeroSection extends StatelessWidget {
                       letterSpacing: 0.2,
                     ),
                   ),
-                  icon: const Text('Plan My Trip'),
-                  label: const Text(''),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      if (isSubmitting)
+                        SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2.4,
+                            valueColor: const AlwaysStoppedAnimation<Color>(
+                              Colors.white,
+                            ),
+                          ),
+                        )
+                      else
+                        const Icon(Icons.auto_awesome, size: 18),
+                      const SizedBox(width: 12),
+                      Text(isSubmitting ? 'Planning...' : 'Plan My Trip'),
+                    ],
+                  ),
                 ),
               );
 
@@ -561,7 +667,8 @@ class PlanForm extends StatelessWidget {
     required this.destinationController,
     required this.fromDateController,
     required this.toDateController,
-    required this.travellersController,
+    required this.travellerCount,
+    required this.onTravellerCountChanged,
     required this.budgetController,
     required this.onFromDateTap,
     required this.onToDateTap,
@@ -571,7 +678,8 @@ class PlanForm extends StatelessWidget {
   final TextEditingController destinationController;
   final TextEditingController fromDateController;
   final TextEditingController toDateController;
-  final TextEditingController travellersController;
+  final int travellerCount;
+  final ValueChanged<int> onTravellerCountChanged;
   final TextEditingController budgetController;
   final VoidCallback onFromDateTap;
   final VoidCallback onToDateTap;
@@ -639,21 +747,16 @@ class PlanForm extends StatelessWidget {
         final travellerBudgetInputs = isStacked
             ? Column(
                 children: [
-                  TextField(
-                    controller: travellersController,
-                    decoration: _decor(
-                      'Travellers',
-                      'How many companions?',
-                      Icons.groups_rounded,
-                    ),
-                    keyboardType: TextInputType.number,
+                  _TravellerCounterField(
+                    count: travellerCount,
+                    onChanged: onTravellerCountChanged,
                   ),
                   const SizedBox(height: 16),
                   TextField(
                     controller: budgetController,
                     decoration: _decor(
                       'Budget',
-                      'â‚¹ 1,50,000',
+                      'ÃƒÂ¢Ã¢Â€ÂšÃ‚Â¹ 1,50,000',
                       Icons.account_balance_wallet_outlined,
                     ),
                     keyboardType: TextInputType.number,
@@ -663,14 +766,9 @@ class PlanForm extends StatelessWidget {
             : Row(
                 children: [
                   Expanded(
-                    child: TextField(
-                      controller: travellersController,
-                      decoration: _decor(
-                        'Travellers',
-                        'How many companions?',
-                        Icons.groups_rounded,
-                      ),
-                      keyboardType: TextInputType.number,
+                    child: _TravellerCounterField(
+                      count: travellerCount,
+                      onChanged: onTravellerCountChanged,
                     ),
                   ),
                   const SizedBox(width: 16),
@@ -679,7 +777,7 @@ class PlanForm extends StatelessWidget {
                       controller: budgetController,
                       decoration: _decor(
                         'Budget',
-                        'â‚¹ 1,50,000',
+                        '50,000',
                         Icons.account_balance_wallet_outlined,
                       ),
                       keyboardType: TextInputType.number,
@@ -716,6 +814,111 @@ class PlanForm extends StatelessWidget {
           ],
         );
       },
+    );
+  }
+}
+
+class _TravellerCounterField extends StatelessWidget {
+  const _TravellerCounterField({
+    required this.count,
+    required this.onChanged,
+  });
+
+  final int count;
+  final ValueChanged<int> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final label = count == 1 ? 'traveller' : 'travellers';
+
+    return Container(
+      decoration: BoxDecoration(
+        color: const Color(0xFFF1F5F9),
+        borderRadius: BorderRadius.circular(18),
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+      child: Row(
+        children: [
+          const Icon(Icons.groups_rounded, color: Color(0xFF1D4ED8)),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Travellers',
+                  style: theme.textTheme.labelMedium?.copyWith(
+                    color: const Color(0xFF475569),
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  '$count $label',
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    color: const Color(0xFF0F172A),
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 12),
+          _TravellerCounterButton(
+            icon: Icons.remove_rounded,
+            onPressed: count > 1 ? () => onChanged(count - 1) : null,
+            semanticLabel: 'Decrease travellers',
+          ),
+          const SizedBox(width: 8),
+          _TravellerCounterButton(
+            icon: Icons.add_rounded,
+            onPressed: () => onChanged(count + 1),
+            semanticLabel: 'Increase travellers',
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _TravellerCounterButton extends StatelessWidget {
+  const _TravellerCounterButton({
+    required this.icon,
+    required this.onPressed,
+    required this.semanticLabel,
+  });
+
+  final IconData icon;
+  final VoidCallback? onPressed;
+  final String semanticLabel;
+
+  @override
+  Widget build(BuildContext context) {
+    final isDisabled = onPressed == null;
+    final backgroundColor =
+        isDisabled ? const Color(0xFFE2E8F0) : const Color(0xFF2563EB);
+    final foregroundColor = isDisabled ? const Color(0xFF94A3B8) : Colors.white;
+
+    return Semantics(
+      button: true,
+      enabled: !isDisabled,
+      label: semanticLabel,
+      child: Material(
+        color: backgroundColor,
+        borderRadius: BorderRadius.circular(12),
+        child: InkWell(
+          onTap: onPressed,
+          borderRadius: BorderRadius.circular(12),
+          child: SizedBox(
+            width: 36,
+            height: 36,
+            child: Center(
+              child: Icon(icon, size: 18, color: foregroundColor),
+            ),
+          ),
+        ),
+      ),
     );
   }
 }
@@ -763,7 +966,9 @@ class MoodChips extends StatelessWidget {
 }
 
 class _ItineraryPreview extends StatelessWidget {
-  const _ItineraryPreview();
+  const _ItineraryPreview({required this.state});
+
+  final AsyncValue<PlanResponse?> state;
 
   @override
   Widget build(BuildContext context) {
@@ -787,14 +992,36 @@ class _ItineraryPreview extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 22),
-        const _ItineraryCarousel(),
+        AnimatedSwitcher(
+          duration: const Duration(milliseconds: 320),
+          child: state.when(
+            data: (plan) {
+              if (plan == null) {
+                return const _ItineraryCarousel(
+                  key: ValueKey('itinerary-placeholder'),
+                );
+              }
+              return _PlanItineraryCard(
+                key: ValueKey('plan-${plan.tripId}'),
+                plan: plan,
+              );
+            },
+            loading: () => const _PlanLoadingCard(
+              key: ValueKey('plan-loading'),
+            ),
+            error: (error, _) => _PlanErrorCallout(
+              key: const ValueKey('plan-error'),
+              error: error,
+            ),
+          ),
+        ),
       ],
     );
   }
 }
 
 class _ItineraryCarousel extends StatelessWidget {
-  const _ItineraryCarousel();
+  const _ItineraryCarousel({super.key});
 
   static const _cardCount = 3;
 
@@ -908,6 +1135,397 @@ class _ItineraryCard extends StatelessWidget {
   }
 }
 
+class _PlanLoadingCard extends StatelessWidget {
+  const _PlanLoadingCard({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+
+    return Container(
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(28),
+        color: Colors.white,
+        border: Border.all(
+          color: colorScheme.primary.withValues(alpha: 0.1),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.05),
+            blurRadius: 32,
+            offset: const Offset(0, 18),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 28,
+            height: 28,
+            child: CircularProgressIndicator(
+              strokeWidth: 3,
+              valueColor: AlwaysStoppedAnimation<Color>(
+                colorScheme.primary,
+              ),
+            ),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Text(
+              'Drafting your itinerary...',
+              style: textTheme.titleMedium?.copyWith(
+                color: const Color(0xFF0F172A),
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PlanErrorCallout extends StatelessWidget {
+  const _PlanErrorCallout({super.key, required this.error});
+
+  final Object error;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+
+    return Container(
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(24),
+        color: const Color(0xFFFFF1F2),
+        border: Border.all(
+          color: colorScheme.error.withValues(alpha: 0.3),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.error_outline, color: colorScheme.error),
+              const SizedBox(width: 12),
+              Text(
+                'We couldn\u2019t draft a plan',
+                style: textTheme.titleMedium?.copyWith(
+                  color: colorScheme.error,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Text(
+            error.toString(),
+            style: textTheme.bodySmall?.copyWith(
+              color: colorScheme.error.withValues(alpha: 0.8),
+              height: 1.4,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PlanItineraryCard extends StatelessWidget {
+  const _PlanItineraryCard({super.key, required this.plan});
+
+  final PlanResponse plan;
+
+  @override
+  Widget build(BuildContext context) {
+    final draft = plan.draft;
+    final days = draft.days;
+    final textTheme = Theme.of(context).textTheme;
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return Container(
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(28),
+        gradient: const LinearGradient(
+          colors: [Color(0xFFFFFFFF), Color(0xFFF5F8FF)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.05),
+            blurRadius: 32,
+            offset: const Offset(0, 18),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            draft.city.isEmpty ? 'Your itinerary' : draft.city,
+            style: textTheme.headlineSmall?.copyWith(
+              color: const Color(0xFF1E3A8A),
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            'Trip ID: ${plan.tripId}',
+            style: textTheme.bodySmall?.copyWith(
+              color: const Color(0xFF475569),
+            ),
+          ),
+          const SizedBox(height: 18),
+          if (days.isEmpty)
+            Text(
+              'No day-level details were returned yet.',
+              style: textTheme.bodyMedium?.copyWith(
+                color: const Color(0xFF475569),
+              ),
+            )
+          else
+            ...List.generate(
+              math.min(3, days.length),
+              (index) => _PlanItineraryDay(
+                day: days[index],
+                index: index,
+              ),
+            ),
+          if (days.length > 3)
+            Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: Text(
+                '+ ${days.length - 3} more day(s) in the draft.',
+                style: textTheme.bodySmall?.copyWith(
+                  color: colorScheme.primary.withValues(alpha: 0.8),
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          const SizedBox(height: 24),
+          Align(
+            alignment: Alignment.centerRight,
+            child: FilledButton.tonal(
+              onPressed: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => ItineraryPage(plan: plan),
+                  ),
+                );
+              },
+              child: const Text('View Itinerary'),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PlanItineraryDay extends StatelessWidget {
+  const _PlanItineraryDay({
+    required this.day,
+    required this.index,
+    this.showAllBlocks = false,
+  });
+
+  final PlanDay day;
+  final int index;
+  final bool showAllBlocks;
+
+  @override
+  Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+    final colorScheme = Theme.of(context).colorScheme;
+    final blocks = day.blocks;
+    final visibleBlocks =
+        showAllBlocks ? blocks : blocks.take(3).toList(growable: false);
+    final hasMore = !showAllBlocks && blocks.length > visibleBlocks.length;
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Day ${index + 1} • ${day.date}',
+            style: textTheme.titleSmall?.copyWith(
+              fontWeight: FontWeight.w700,
+              color: const Color(0xFF1E3A8A),
+            ),
+          ),
+          const SizedBox(height: 10),
+          if (blocks.isEmpty)
+            Text(
+              'No blocks suggested for this day.',
+              style: textTheme.bodySmall?.copyWith(
+                color: const Color(0xFF475569),
+              ),
+            )
+          else
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                ...visibleBlocks.map(
+                  (block) => _PlanItineraryBlock(block: block),
+                ),
+                if (hasMore)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 6),
+                    child: Text(
+                      '+ ${blocks.length - visibleBlocks.length} more suggestion(s).',
+                      style: textTheme.bodySmall?.copyWith(
+                        color: colorScheme.primary.withValues(alpha: 0.7),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PlanItineraryBlock extends StatelessWidget {
+  const _PlanItineraryBlock({required this.block});
+
+  final PlanBlock block;
+
+  @override
+  Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+    final colorScheme = Theme.of(context).colorScheme;
+    final time = block.time.isEmpty ? 'Anytime' : block.time;
+    final tag = block.tag;
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 64,
+            child: Text(
+              time,
+              style: textTheme.labelMedium?.copyWith(
+                color: colorScheme.primary,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  block.title,
+                  style: textTheme.bodyMedium?.copyWith(
+                    color: const Color(0xFF0F172A),
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                if (tag != null && tag.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 4),
+                    child: Text(
+                      '#$tag',
+                      style: textTheme.bodySmall?.copyWith(
+                        color: const Color(0xFF475569),
+                      ),
+                    ),
+                  ),
+                if (block.placeId != null &&
+                    block.lat != null &&
+                    block.lng != null)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 4),
+                    child: Text(
+                      'Lat: ${block.lat!.toStringAsFixed(3)}, Lng: ${block.lng!.toStringAsFixed(3)}',
+                      style: textTheme.bodySmall?.copyWith(
+                        color: const Color(0xFF64748B),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class ItineraryPage extends StatelessWidget {
+  const ItineraryPage({super.key, required this.plan});
+
+  final PlanResponse plan;
+
+  @override
+  Widget build(BuildContext context) {
+    final draft = plan.draft;
+    final days = draft.days;
+    final textTheme = Theme.of(context).textTheme;
+
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Itinerary'),
+      ),
+      body: SafeArea(
+        child: days.isEmpty
+            ? Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: Text(
+                    'We don\'t have day-level details for this plan yet.',
+                    textAlign: TextAlign.center,
+                    style: textTheme.bodyMedium?.copyWith(
+                      color: const Color(0xFF475569),
+                    ),
+                  ),
+                ),
+              )
+            : ListView(
+                padding: const EdgeInsets.fromLTRB(24, 24, 24, 36),
+                children: [
+                  Text(
+                    draft.city.isEmpty ? 'Your itinerary' : draft.city,
+                    style: textTheme.headlineSmall?.copyWith(
+                      color: const Color(0xFF1E3A8A),
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    'Trip ID: ${plan.tripId}',
+                    style: textTheme.bodySmall?.copyWith(
+                      color: const Color(0xFF475569),
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  ...List.generate(
+                    days.length,
+                    (index) => _PlanItineraryDay(
+                      day: days[index],
+                      index: index,
+                      showAllBlocks: true,
+                    ),
+                  ),
+                ],
+              ),
+      ),
+    );
+  }
+}
+
 class _PlaceholderLine extends StatelessWidget {
   const _PlaceholderLine({required this.widthFactor});
 
@@ -936,19 +1554,19 @@ class _PopularNowSection extends StatelessWidget {
     const _TourPackage(
       title: 'Cappadocia Sky Trails',
       subtitle: 'Hot-air dawn flights + cave suites',
-      price: '₹1.9L',
+      price: 'INR 1.9L',
       days: '4N / 5D',
     ),
     const _TourPackage(
       title: 'Kenyan Savannah Magic',
       subtitle: 'Game drives + eco-luxe camps',
-      price: '₹3.1L',
+      price: 'INR 3.1L',
       days: '6N / 7D',
     ),
     const _TourPackage(
       title: 'Norway Aurora Quest',
       subtitle: 'Glass igloos + fjord cruises',
-      price: '₹2.5L',
+      price: 'INR 2.5L',
       days: '5N / 6D',
     ),
   ];
@@ -1136,7 +1754,7 @@ class _AIConciergeSection extends StatelessWidget {
                   ],
                 ),
                 alignment: Alignment.center,
-                child: const Text('?', style: TextStyle(fontSize: 24)),
+                child: const Text('', style: TextStyle(fontSize: 24)),
               ),
               const SizedBox(width: 18),
               Expanded(
