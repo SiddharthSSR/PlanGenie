@@ -43,11 +43,11 @@ origin_regex = os.getenv(
 allowed_origins = [o.strip() for o in raw_origins.split(",") if o.strip()]
 
 cors_kwargs: dict[str, Any] = {
-    "allow_methods": ["*"],             # GET, POST, PUT, DELETE, OPTIONS, ...
-    "allow_headers": ["*"],             # Authorization, Content-Type, custom headers
-    "expose_headers": ["*"],            # if frontend reads custom response headers
-    "allow_credentials": True,          # needed if you use cookies / withCredentials
-    "max_age": 86400,                   # cache preflight for 24h
+    "allow_methods": ["*"],
+    "allow_headers": ["*"],
+    "expose_headers": ["*"],
+    "allow_credentials": True,
+    "max_age": 86400,
 }
 
 # Prefer regex for localhost dev; fall back to explicit list for prod
@@ -58,6 +58,7 @@ if allowed_origins:
     cors_kwargs["allow_origins"] = allowed_origins
 
 app.add_middleware(CORSMiddleware, **cors_kwargs)
+
 
 class PlanRequest(BaseModel):
     origin: str = Field(..., examples=["DEL"])
@@ -117,9 +118,16 @@ def plan(req: PlanRequest):
     if not days:
         days = [{"date": req.startDate, "blocks": []}]
 
+    # --- keep total_budget from Gemini (do not drop it) ---
+    itinerary_draft = {"city": city, "days": days}
+    total_budget = draft.get("total_budget")
+    if total_budget is not None:
+        itinerary_draft["total_budget"] = total_budget
+    # ------------------------------------------------------
+
     itinerary = {
         "prefs": prefs,
-        "itineraryDraft": {"city": city, "days": days},
+        "itineraryDraft": itinerary_draft,
         "status": "DRAFT",
     }
 
@@ -128,9 +136,7 @@ def plan(req: PlanRequest):
         enriched_days = []
         for day in itinerary["itineraryDraft"]["days"]:
             try:
-                enriched_days.append(
-                    enrich_with_maps(city, day, MAPS_API_KEY)
-                )
+                enriched_days.append(enrich_with_maps(city, day, MAPS_API_KEY))
             except Exception as e:
                 print(f"[maps_enrich] warning: {e}")
                 enriched_days.append(day)
@@ -138,7 +144,9 @@ def plan(req: PlanRequest):
 
     if not PROJECT_ID:
         raise RuntimeError("FIRESTORE_PROJECT env var is required")
+
     # 3) Store in Firestore
     trip_id = save_itinerary(PROJECT_ID, itinerary)
 
+    # Return draft with total_budget included
     return {"tripId": trip_id, "draft": itinerary["itineraryDraft"]}
