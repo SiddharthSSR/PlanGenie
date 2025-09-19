@@ -2,6 +2,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:plangenie/src/theme/app_theme.dart';
 import 'package:plangenie/src/widgets/feedback_banner.dart';
 
 import 'providers/auth_providers.dart';
@@ -46,126 +47,164 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     final mediaQuery = MediaQuery.of(context);
     final isWideLayout = mediaQuery.size.width >= 720;
     final maxContentWidth = isWideLayout ? 520.0 : 420.0;
-    final horizontalPadding = isWideLayout ? (mediaQuery.size.width - maxContentWidth) / 2 : 24.0;
+    final horizontalPadding =
+        isWideLayout ? (mediaQuery.size.width - maxContentWidth) / 2 : 24.0;
     final verticalPadding = mediaQuery.size.height >= 840 ? 40.0 : 24.0;
     final tabViewHeight = mediaQuery.size.height >= 780 ? 320.0 : 280.0;
 
-    return Scaffold(
-      body: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: [
-              theme.colorScheme.primaryContainer
-                  .withAlpha((0.5 * 255).round()),
-              theme.colorScheme.surface,
-            ],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
-        ),
-        child: SafeArea(
-          child: LayoutBuilder(
-            builder: (context, constraints) {
-              final effectiveHorizontal = constraints.maxWidth >= maxContentWidth
-                  ? horizontalPadding
-                  : 24.0;
+    final colorScheme = ColorScheme.fromSeed(
+      seedColor: const Color(0xFF2563EB),
+      brightness: Brightness.light,
+    );
 
-              return Center(
-                child: SingleChildScrollView(
-                  padding: EdgeInsets.symmetric(
-                    horizontal: effectiveHorizontal,
-                    vertical: verticalPadding,
-                  ),
-                  child: ConstrainedBox(
-                    constraints: BoxConstraints(maxWidth: maxContentWidth),
-                    child: Card(
-                      elevation: 10,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(28),
-                      ),
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 24,
-                          vertical: 32,
+    final loginTheme = theme.copyWith(
+      colorScheme: colorScheme,
+      scaffoldBackgroundColor: const Color(0xFFF8FAFF),
+      cardColor: Colors.white,
+      filledButtonTheme: FilledButtonThemeData(
+        style: FilledButton.styleFrom(
+          backgroundColor: const Color(0xFF2563EB),
+          foregroundColor: Colors.white,
+          textStyle: theme.textTheme.titleMedium,
+        ),
+      ),
+    );
+
+    final palette = loginTheme.extension<PlanGeniePalette>();
+
+    return Theme(
+      data: loginTheme,
+      child: Scaffold(
+        backgroundColor: loginTheme.scaffoldBackgroundColor,
+        body: Container(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [
+                palette?.backgroundStart ?? const Color(0xFFDBEAFE),
+                palette?.backgroundEnd ?? const Color(0xFFF8FAFF),
+              ],
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+            ),
+          ),
+          child: SafeArea(
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final effectiveHorizontal =
+                    constraints.maxWidth >= maxContentWidth
+                        ? horizontalPadding
+                        : 24.0;
+                final bottomInset = mediaQuery.viewInsets.bottom;
+
+                return Center(
+                  child: SingleChildScrollView(
+                    physics: const BouncingScrollPhysics(
+                      parent: AlwaysScrollableScrollPhysics(),
+                    ),
+                    keyboardDismissBehavior:
+                        ScrollViewKeyboardDismissBehavior.onDrag,
+                    padding: EdgeInsets.fromLTRB(
+                      effectiveHorizontal,
+                      verticalPadding,
+                      effectiveHorizontal,
+                      verticalPadding + bottomInset,
+                    ),
+                    child: ConstrainedBox(
+                      constraints: BoxConstraints(maxWidth: maxContentWidth),
+                      child: Card(
+                        elevation: 12,
+                        shadowColor:
+                            const Color(0xFF2563EB).withValues(alpha: 0.18),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(28),
                         ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Text(
-                              'Plan smarter, travel better',
-                              style: theme.textTheme.headlineMedium,
-                            ),
-                            const SizedBox(height: 12),
-                            Text(
-                              'Sign in to sync itineraries, manage bookings, and pick up where you left off.',
-                              style: theme.textTheme.bodyMedium,
-                            ),
-                            const SizedBox(height: 24),
-                            FilledButton.icon(
-                              onPressed: _isLoading ? null : _signInWithGoogle,
-                              icon: const Icon(Icons.g_mobiledata, size: 32),
-                              label: const Text('Continue with Google'),
-                              style: FilledButton.styleFrom(
-                                padding: const EdgeInsets.symmetric(vertical: 14),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 24,
+                            vertical: 32,
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                'Plan smarter, travel better',
+                                style: loginTheme.textTheme.headlineMedium,
                               ),
-                            ),
-                            const SizedBox(height: 16),
-                            const _FormDivider(label: 'or continue with'),
-                            const SizedBox(height: 16),
-                            _AuthTabs(
-                              tabHeight: tabViewHeight,
-                              emailForm: _EmailLoginForm(
-                                emailController: _emailController,
-                                passwordController: _passwordController,
-                                obscurePassword: _obscurePassword,
-                                isLoading: _isLoading,
-                                onTogglePassword: () {
-                                  setState(() =>
-                                      _obscurePassword = !_obscurePassword);
-                                },
-                                onSignIn: _signInWithEmail,
-                                onCreateAccount: _openSignUpScreen,
-                                onForgotPassword: _showResetPasswordDialog,
+                              const SizedBox(height: 12),
+                              Text(
+                                'Sign in to sync itineraries, manage bookings, and pick up where you left off.',
+                                style: loginTheme.textTheme.bodyMedium,
                               ),
-                              phoneForm: _PhoneLoginForm(
-                                phoneController: _phoneController,
-                                smsCodeController: _smsCodeController,
-                                handle: _phoneHandle,
-                                isLoading: _isLoading,
-                                onSendCode: _startPhoneSignIn,
-                                onVerifyCode: _confirmSmsCode,
-                                onResendCode: _resendCode,
+                              const SizedBox(height: 24),
+                              FilledButton.icon(
+                                onPressed:
+                                    _isLoading ? null : _signInWithGoogle,
+                                icon: const Icon(Icons.g_mobiledata, size: 32),
+                                label: const Text('Continue with Google'),
+                                style: FilledButton.styleFrom(
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 14,
+                                  ),
+                                ),
                               ),
-                            ),
-                            if (_errorMessage != null) ...[
                               const SizedBox(height: 16),
-                              FeedbackBanner(
-                                message: _errorMessage!,
-                                variant: FeedbackBannerVariant.error,
+                              const _FormDivider(label: 'or continue with'),
+                              const SizedBox(height: 16),
+                              _AuthTabs(
+                                tabHeight: tabViewHeight,
+                                emailForm: _EmailLoginForm(
+                                  emailController: _emailController,
+                                  passwordController: _passwordController,
+                                  obscurePassword: _obscurePassword,
+                                  isLoading: _isLoading,
+                                  onTogglePassword: () {
+                                    setState(() =>
+                                        _obscurePassword = !_obscurePassword);
+                                  },
+                                  onSignIn: _signInWithEmail,
+                                  onCreateAccount: _openSignUpScreen,
+                                  onForgotPassword: _showResetPasswordDialog,
+                                ),
+                                phoneForm: _PhoneLoginForm(
+                                  phoneController: _phoneController,
+                                  smsCodeController: _smsCodeController,
+                                  handle: _phoneHandle,
+                                  isLoading: _isLoading,
+                                  onSendCode: _startPhoneSignIn,
+                                  onVerifyCode: _confirmSmsCode,
+                                  onResendCode: _resendCode,
+                                ),
+                              ),
+                              if (_errorMessage != null) ...[
+                                const SizedBox(height: 16),
+                                FeedbackBanner(
+                                  message: _errorMessage!,
+                                  variant: FeedbackBannerVariant.error,
+                                ),
+                              ],
+                              if (_statusMessage != null) ...[
+                                const SizedBox(height: 16),
+                                FeedbackBanner(
+                                  message: _statusMessage!,
+                                  variant: _statusVariant,
+                                ),
+                              ],
+                              const SizedBox(height: 24),
+                              Text(
+                                'By continuing, you agree to our Terms of Service and confirm you have read our Privacy Policy.',
+                                style: loginTheme.textTheme.bodySmall,
+                                textAlign: TextAlign.center,
                               ),
                             ],
-                            if (_statusMessage != null) ...[
-                              const SizedBox(height: 16),
-                              FeedbackBanner(
-                                message: _statusMessage!,
-                                variant: _statusVariant,
-                              ),
-                            ],
-                            const SizedBox(height: 24),
-                            Text(
-                              'By continuing, you agree to our Terms of Service and confirm you have read our Privacy Policy.',
-                              style: theme.textTheme.bodySmall,
-                              textAlign: TextAlign.center,
-                            ),
-                          ],
+                          ),
                         ),
                       ),
                     ),
                   ),
-                ),
-              );
-            },
+                );
+              },
+            ),
           ),
         ),
       ),
@@ -263,22 +302,23 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     });
   }
 
-  void _openSignUpScreen() {
+  Future<void> _openSignUpScreen() async {
     if (_isLoading) {
       return;
     }
-    Navigator.of(context)
-        .push<String>(
-          MaterialPageRoute<String>(
-            builder: (_) => const SignUpScreen(),
-          ),
-        )
-        .then((message) {
-          if (!mounted || message == null) {
-            return;
-          }
-          _showStatus(message);
-        });
+
+    final message = await showModalBottomSheet<String>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      barrierColor: Colors.black.withValues(alpha: 0.42),
+      builder: (_) => const SignUpScreen(),
+    );
+
+    if (!mounted || message == null) {
+      return;
+    }
+    _showStatus(message);
   }
 
   Future<void> _runAuthFlow(
@@ -400,6 +440,17 @@ class _AuthTabs extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final palette = theme.extension<PlanGeniePalette>();
+
+    final surfaceColor = palette?.tintedSurface ??
+        theme.colorScheme.primaryContainer.withValues(alpha: 0.18);
+    final borderColor = palette?.tintedSurfaceBorder ??
+        theme.colorScheme.primary.withValues(alpha: 0.24);
+    final indicatorColor =
+        palette?.primaryIndicator ?? theme.colorScheme.primary;
+    final onIndicatorColor =
+        palette?.onPrimaryIndicator ?? theme.colorScheme.onPrimary;
+
     return DefaultTabController(
       length: 2,
       child: Column(
@@ -408,22 +459,21 @@ class _AuthTabs extends StatelessWidget {
           Container(
             clipBehavior: Clip.antiAlias,
             decoration: BoxDecoration(
-              color: theme.colorScheme.primaryContainer
-                  .withAlpha((0.12 * 255).round()),
+              color: surfaceColor,
               borderRadius: BorderRadius.circular(18),
               border: Border.all(
-                color: theme.colorScheme.outlineVariant,
+                color: borderColor,
               ),
             ),
             child: Padding(
               padding: const EdgeInsets.all(4),
               child: TabBar(
                 indicatorSize: TabBarIndicatorSize.tab,
-                labelColor: theme.colorScheme.onPrimaryContainer,
+                labelColor: onIndicatorColor,
                 unselectedLabelColor: theme.colorScheme.onSurfaceVariant,
                 dividerColor: Colors.transparent,
                 indicator: BoxDecoration(
-                  color: theme.colorScheme.primaryContainer,
+                  color: indicatorColor,
                   borderRadius: BorderRadius.circular(14),
                 ),
                 tabs: const [
