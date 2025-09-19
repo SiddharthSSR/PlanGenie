@@ -777,7 +777,7 @@ class PlanForm extends StatelessWidget {
                       controller: budgetController,
                       decoration: _decor(
                         'Budget',
-                        'ÃƒÂ¢Ã¢Â€ÂšÃ‚Â¹ 1,50,000',
+                        '50,000',
                         Icons.account_balance_wallet_outlined,
                       ),
                       keyboardType: TextInputType.number,
@@ -1309,6 +1309,20 @@ class _PlanItineraryCard extends StatelessWidget {
                 ),
               ),
             ),
+          const SizedBox(height: 24),
+          Align(
+            alignment: Alignment.centerRight,
+            child: FilledButton.tonal(
+              onPressed: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => ItineraryPage(plan: plan),
+                  ),
+                );
+              },
+              child: const Text('View Itinerary'),
+            ),
+          ),
         ],
       ),
     );
@@ -1316,16 +1330,24 @@ class _PlanItineraryCard extends StatelessWidget {
 }
 
 class _PlanItineraryDay extends StatelessWidget {
-  const _PlanItineraryDay({required this.day, required this.index});
+  const _PlanItineraryDay({
+    required this.day,
+    required this.index,
+    this.showAllBlocks = false,
+  });
 
   final PlanDay day;
   final int index;
+  final bool showAllBlocks;
 
   @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
     final colorScheme = Theme.of(context).colorScheme;
     final blocks = day.blocks;
+    final visibleBlocks =
+        showAllBlocks ? blocks : blocks.take(3).toList(growable: false);
+    final hasMore = !showAllBlocks && blocks.length > visibleBlocks.length;
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 16),
@@ -1351,14 +1373,14 @@ class _PlanItineraryDay extends StatelessWidget {
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                ...blocks.take(3).map(
-                      (block) => _PlanItineraryBlock(block: block),
-                    ),
-                if (blocks.length > 3)
+                ...visibleBlocks.map(
+                  (block) => _PlanItineraryBlock(block: block),
+                ),
+                if (hasMore)
                   Padding(
                     padding: const EdgeInsets.only(top: 6),
                     child: Text(
-                      '+ ${blocks.length - 3} more suggestion(s).',
+                      '+ ${blocks.length - visibleBlocks.length} more suggestion(s).',
                       style: textTheme.bodySmall?.copyWith(
                         color: colorScheme.primary.withValues(alpha: 0.7),
                       ),
@@ -1442,6 +1464,68 @@ class _PlanItineraryBlock extends StatelessWidget {
   }
 }
 
+class ItineraryPage extends StatelessWidget {
+  const ItineraryPage({super.key, required this.plan});
+
+  final PlanResponse plan;
+
+  @override
+  Widget build(BuildContext context) {
+    final draft = plan.draft;
+    final days = draft.days;
+    final textTheme = Theme.of(context).textTheme;
+
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Itinerary'),
+      ),
+      body: SafeArea(
+        child: days.isEmpty
+            ? Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: Text(
+                    'We don\'t have day-level details for this plan yet.',
+                    textAlign: TextAlign.center,
+                    style: textTheme.bodyMedium?.copyWith(
+                      color: const Color(0xFF475569),
+                    ),
+                  ),
+                ),
+              )
+            : ListView(
+                padding: const EdgeInsets.fromLTRB(24, 24, 24, 36),
+                children: [
+                  Text(
+                    draft.city.isEmpty ? 'Your itinerary' : draft.city,
+                    style: textTheme.headlineSmall?.copyWith(
+                      color: const Color(0xFF1E3A8A),
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    'Trip ID: ${plan.tripId}',
+                    style: textTheme.bodySmall?.copyWith(
+                      color: const Color(0xFF475569),
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  ...List.generate(
+                    days.length,
+                    (index) => _PlanItineraryDay(
+                      day: days[index],
+                      index: index,
+                      showAllBlocks: true,
+                    ),
+                  ),
+                ],
+              ),
+      ),
+    );
+  }
+}
+
 class _PlaceholderLine extends StatelessWidget {
   const _PlaceholderLine({required this.widthFactor});
 
@@ -1470,19 +1554,19 @@ class _PopularNowSection extends StatelessWidget {
     const _TourPackage(
       title: 'Cappadocia Sky Trails',
       subtitle: 'Hot-air dawn flights + cave suites',
-      price: 'Ã¢Â‚Â¹1.9L',
+      price: 'INR 1.9L',
       days: '4N / 5D',
     ),
     const _TourPackage(
       title: 'Kenyan Savannah Magic',
       subtitle: 'Game drives + eco-luxe camps',
-      price: 'Ã¢Â‚Â¹3.1L',
+      price: 'INR 3.1L',
       days: '6N / 7D',
     ),
     const _TourPackage(
       title: 'Norway Aurora Quest',
       subtitle: 'Glass igloos + fjord cruises',
-      price: 'Ã¢Â‚Â¹2.5L',
+      price: 'INR 2.5L',
       days: '5N / 6D',
     ),
   ];
@@ -1670,7 +1754,7 @@ class _AIConciergeSection extends StatelessWidget {
                   ],
                 ),
                 alignment: Alignment.center,
-                child: const Text('?', style: TextStyle(fontSize: 24)),
+                child: const Text('', style: TextStyle(fontSize: 24)),
               ),
               const SizedBox(width: 18),
               Expanded(
