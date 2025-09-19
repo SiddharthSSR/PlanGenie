@@ -1,19 +1,23 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:plangenie/src/features/auth/login_screen.dart';
+import 'package:plangenie/src/features/auth/providers/onboarding_providers.dart';
 
 const _gradientStart = Color(0xFF0B1120);
 const _gradientMiddle = Color(0xFF1E3A8A);
 const _gradientEnd = Color(0xFF3B82F6);
 
-class OnboardingScreen extends StatefulWidget {
+class OnboardingScreen extends ConsumerStatefulWidget {
   const OnboardingScreen({super.key});
 
   @override
-  State<OnboardingScreen> createState() => _OnboardingScreenState();
+  ConsumerState<OnboardingScreen> createState() => _OnboardingScreenState();
 }
 
-class _OnboardingScreenState extends State<OnboardingScreen> {
+class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
   late final PageController _pageController;
   int _currentPage = 0;
   double _pageOffset = 0.0;
@@ -98,12 +102,16 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       return;
     }
 
-    // TODO: Persist onboarding completion status via SharedPreferences or Firestore.
-    // Present the login screen so returning users sign in after onboarding.
     _openLogin();
   }
 
-  void _openLogin() {
+  Future<void> _openLogin() async {
+    final repository = ref.read(onboardingRepositoryProvider);
+    await repository.setCompleted();
+    ref.invalidate(hasCompletedOnboardingProvider);
+    if (!mounted) {
+      return;
+    }
     Navigator.of(context).push(
       MaterialPageRoute(builder: (_) => const LoginScreen()),
     );
@@ -168,7 +176,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                       button: true,
                       label: 'Log in',
                       child: GestureDetector(
-                        onTap: _openLogin,
+                        onTap: () => _openLogin(),
                         behavior: HitTestBehavior.opaque,
                         child: Padding(
                           padding: const EdgeInsets.symmetric(

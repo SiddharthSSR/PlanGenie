@@ -2,11 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../auth/providers/auth_providers.dart';
+import '../auth/widgets/auth_gate.dart';
 import 'data/planner_api.dart';
 import 'providers/plan_controller.dart';
 
-class HomeScreen extends ConsumerWidget {
-  const HomeScreen({super.key});
+/// Temporary screen retained for backend testing; not used by the live app.
+class TemporaryScreen extends ConsumerWidget {
+  const TemporaryScreen({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -16,7 +18,14 @@ class HomeScreen extends ConsumerWidget {
         actions: [
           IconButton(
             tooltip: 'Sign out',
-            onPressed: () => ref.read(firebaseAuthProvider).signOut(),
+            onPressed: () async {
+              final navigator = Navigator.of(context);
+              await ref.read(firebaseAuthProvider).signOut();
+              navigator.pushAndRemoveUntil(
+                MaterialPageRoute(builder: (_) => const AuthGate()),
+                (route) => false,
+              );
+            },
             icon: const Icon(Icons.logout),
           ),
         ],
