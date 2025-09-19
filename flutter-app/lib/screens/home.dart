@@ -2,9 +2,9 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:plangenie/src/features/auth/providers/auth_providers.dart';
 import 'package:plangenie/src/features/home/data/planner_api.dart';
 import 'package:plangenie/src/features/home/providers/plan_controller.dart';
-import 'package:plangenie/src/features/home/home_screen.dart';
 
 class HomePage extends ConsumerStatefulWidget {
   const HomePage({super.key});
@@ -241,23 +241,16 @@ class _HomePageState extends ConsumerState<HomePage> {
         appBar: AppBar(
           titleSpacing: 24,
           title: const _BrandTitle(),
-          actions: const [
-            _CartAction(),
-            SizedBox(width: 12),
-            Padding(
+          actions: [
+            const _CartAction(),
+            const SizedBox(width: 12),
+            const _LogoutAction(),
+            const SizedBox(width: 12),
+            const Padding(
               padding: EdgeInsets.only(right: 24),
               child: _ProfileAction(),
             ),
           ],
-        ),
-        floatingActionButton: FloatingActionButton.small(
-          tooltip: 'Open backend demo',
-          onPressed: () {
-            Navigator.of(context).push(
-              MaterialPageRoute(builder: (_) => const HomeScreen()),
-            );
-          },
-          child: const Icon(Icons.arrow_forward_ios, size: 18),
         ),
         body: Stack(
           children: [
@@ -378,6 +371,21 @@ class _CartAction extends StatelessWidget {
           onPressed: () {},
         ),
       ),
+    );
+  }
+}
+
+class _LogoutAction extends ConsumerWidget {
+  const _LogoutAction();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return IconButton(
+      tooltip: 'Log out',
+      icon: const Icon(Icons.logout),
+      onPressed: () async {
+        await ref.read(firebaseAuthProvider).signOut();
+      },
     );
   }
 }
