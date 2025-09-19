@@ -43,13 +43,18 @@ gcloud run deploy planner-api \
   --region=$REGION \
   --service-account=planner-sa@$PROJECT_ID.iam.gserviceaccount.com \
   --allow-unauthenticated \
-  --set-env-vars=FIRESTORE_PROJECT=$PROJECT_ID,VERTEX_REGION=$REGION
+  --set-env-vars=FIRESTORE_PROJECT=$PROJECT_ID,VERTEX_REGION=$REGION \
+  --set-env-vars='PLANGENIE_CORS_REGEX=^https?://localhost(:[0-9]+)?$' \
+  --set-env-vars=PLANGENIE_CORS_ORIGINS=https://your-prod.web.app,https://your-custom-domain.com
 
 # list docker images currently running
 gcloud artifacts docker images list \
   $REGION-docker.pkg.dev/$PROJECT_ID/containers \
   --include-tags
 
+# OR delete tag only (digest remains if used elsewhere)
+gcloud artifacts docker tags delete \
+  asia-south1-docker.pkg.dev/plangenie-472417/containers/planner-api:latest
 # delete specific images
 gcloud artifacts docker images delete \
   $REGION-docker.pkg.dev/$PROJECT_ID/containers/planner-api@sha256:<digest> \

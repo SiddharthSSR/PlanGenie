@@ -1,5 +1,5 @@
 import os
-from typing import Literal
+from typing import Literal, Any
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -34,16 +34,30 @@ MAPS_API_KEY = None
 
 app = FastAPI(title="Planner API")
 
-raw_origins = os.getenv("PLANGENIE_CORS_ORIGINS")
-allowed_origins = [o.strip() for o in raw_origins.split(",") if o.strip()] if raw_origins else ["*"]
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=allowed_origins,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+raw_origins = os.getenv("PLANGENIE_CORS_ORIGINS", "")  # comma-separated
+origin_regex = os.getenv(
+    "PLANGENIE_CORS_REGEX",
+    r"^https?://localhost(:\d+)?$"  # allow any localhost port by default
 )
 
+allowed_origins = [o.strip() for o in raw_origins.split(",") if o.strip()]
+
+cors_kwargs: dict[str, Any] = {
+    "allow_methods": ["*"],
+    "allow_headers": ["*"],
+    "expose_headers": ["*"],
+    "allow_credentials": True,
+    "max_age": 86400,
+}
+
+# Prefer regex for localhost dev; fall back to explicit list for prod
+if origin_regex:
+    cors_kwargs["allow_origin_regex"] = origin_regex
+if allowed_origins:
+    # You can combine regex + explicit allowlist: fastapi will honor both
+    cors_kwargs["allow_origins"] = allowed_origins
+
+app.add_middleware(CORSMiddleware, **cors_kwargs)
 
 
 class PlanRequest(BaseModel):
@@ -104,9 +118,16 @@ def plan(req: PlanRequest):
     if not days:
         days = [{"date": req.startDate, "blocks": []}]
 
+    # --- keep total_budget from Gemini (do not drop it) ---
+    itinerary_draft = {"city": city, "days": days}
+    total_budget = draft.get("total_budget")
+    if total_budget is not None:
+        itinerary_draft["total_budget"] = total_budget
+    # ------------------------------------------------------
+
     itinerary = {
         "prefs": prefs,
-        "itineraryDraft": {"city": city, "days": days},
+        "itineraryDraft": itinerary_draft,
         "status": "DRAFT",
     }
 
@@ -115,9 +136,7 @@ def plan(req: PlanRequest):
         enriched_days = []
         for day in itinerary["itineraryDraft"]["days"]:
             try:
-                enriched_days.append(
-                    enrich_with_maps(city, day, MAPS_API_KEY)
-                )
+                enriched_days.append(enrich_with_maps(city, day, MAPS_API_KEY))
             except Exception as e:
                 print(f"[maps_enrich] warning: {e}")
                 enriched_days.append(day)
@@ -125,7 +144,9 @@ def plan(req: PlanRequest):
 
     if not PROJECT_ID:
         raise RuntimeError("FIRESTORE_PROJECT env var is required")
+
     # 3) Store in Firestore
     trip_id = save_itinerary(PROJECT_ID, itinerary)
 
+    # Return draft with total_budget included
     return {"tripId": trip_id, "draft": itinerary["itineraryDraft"]}
