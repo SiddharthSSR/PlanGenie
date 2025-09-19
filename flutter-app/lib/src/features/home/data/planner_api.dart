@@ -125,13 +125,34 @@ class PlanResponse {
 }
 
 class PlanDraft {
-  PlanDraft({required this.city, required this.days});
+  PlanDraft({
+    required this.city,
+    required this.days,
+    this.imageUrl = '',
+    this.destinationBlurb = '',
+    this.totalBudget,
+  });
 
   final String city;
   final List<PlanDay> days;
+  final String imageUrl;
+  final String destinationBlurb;
+  final double? totalBudget;
 
   factory PlanDraft.fromJson(Map<String, dynamic> json) {
     final daysJson = json['days'] as List<dynamic>?;
+    final imageUrl = (json['imageUrl'] as String?) ??
+        (json['image_url'] as String?) ??
+        (json['cityImageUrl'] as String?) ??
+        (json['heroImageUrl'] as String?) ??
+        '';
+    final destinationBlurb = (json['destinationBlurb'] as String?) ??
+        (json['destination_blurb'] as String?) ??
+        '';
+    final totalBudgetRaw = json['total_budget'] ?? json['totalBudget'];
+    final totalBudget =
+        totalBudgetRaw is num ? totalBudgetRaw.toDouble() : null;
+
     return PlanDraft(
       city: json['city'] as String? ?? 'Unknown',
       days: daysJson == null
@@ -140,6 +161,9 @@ class PlanDraft {
               .map((dynamic day) =>
                   PlanDay.fromJson(day as Map<String, dynamic>))
               .toList(),
+      imageUrl: imageUrl,
+      destinationBlurb: destinationBlurb,
+      totalBudget: totalBudget,
     );
   }
 }

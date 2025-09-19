@@ -1,9 +1,9 @@
-import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:plangenie/src/features/auth/providers/auth_providers.dart';
 import 'package:plangenie/src/features/home/data/planner_api.dart';
 import 'package:plangenie/src/features/home/providers/plan_controller.dart';
+import 'package:plangenie/src/theme/app_theme.dart';
 
 class HomePage extends ConsumerStatefulWidget {
   const HomePage({super.key});
@@ -96,16 +96,51 @@ class _HomePageState extends ConsumerState<HomePage> {
         ? currentFrom
         : (currentTo.isAfter(currentFrom) ? currentTo : currentFrom);
     final firstDate = isStart ? now : currentFrom;
+    final palette = Theme.of(context).extension<PlanGeniePalette>();
+    final primaryBlue =
+        palette?.primaryIndicator ?? Theme.of(context).colorScheme.primary;
     final picked = await showDatePicker(
       context: context,
       initialDate: initialDate,
       firstDate: firstDate,
       lastDate: DateTime(now.year + 2),
       builder: (context, child) {
-        final colorScheme = Theme.of(context).colorScheme;
+        final theme = Theme.of(context);
+        final datePickerTheme = theme.datePickerTheme.copyWith(
+          backgroundColor: Colors.white,
+          surfaceTintColor: Colors.transparent,
+          headerBackgroundColor: primaryBlue,
+          headerForegroundColor: Colors.white,
+          dayForegroundColor: WidgetStateProperty.resolveWith((states) {
+            if (states.contains(WidgetState.disabled)) {
+              return theme.colorScheme.onSurface.withValues(alpha: 0.35);
+            }
+            if (states.contains(WidgetState.selected)) {
+              return Colors.white;
+            }
+            return theme.colorScheme.onSurface;
+          }),
+          dayBackgroundColor: WidgetStateProperty.resolveWith((states) {
+            if (states.contains(WidgetState.selected)) {
+              return primaryBlue;
+            }
+            if (states.contains(WidgetState.hovered)) {
+              return primaryBlue.withValues(alpha: 0.12);
+            }
+            return Colors.transparent;
+          }),
+        );
         return Theme(
-          data: Theme.of(context).copyWith(
-            colorScheme: colorScheme.copyWith(primary: const Color(0xFF2563EB)),
+          data: theme.copyWith(
+            colorScheme: theme.colorScheme.copyWith(
+              primary: primaryBlue,
+              surfaceTint: Colors.transparent,
+            ),
+            dialogTheme: theme.dialogTheme.copyWith(
+              backgroundColor: Colors.white,
+              surfaceTintColor: Colors.transparent,
+            ),
+            datePickerTheme: datePickerTheme,
           ),
           child: child ?? const SizedBox.shrink(),
         );
@@ -383,6 +418,7 @@ class _LogoutAction extends ConsumerWidget {
       icon: const Icon(Icons.logout),
       onPressed: () async {
         await ref.read(firebaseAuthProvider).signOut();
+        ref.invalidate(planControllerProvider);
       },
     );
   }
@@ -992,7 +1028,7 @@ class _ItineraryPreview extends StatelessWidget {
         ),
         const SizedBox(height: 8),
         Text(
-          'Swipe through immersive story cards. Detailed itineraries will appear once plans are generated.',
+          'Tap your curated card to preview the full plan. We will plug in live trip data once it is generated.',
           style: textTheme.bodyMedium?.copyWith(
             color: const Color(0xFF475569),
           ),
@@ -1001,17 +1037,14 @@ class _ItineraryPreview extends StatelessWidget {
         AnimatedSwitcher(
           duration: const Duration(milliseconds: 320),
           child: state.when(
-            data: (plan) {
-              if (plan == null) {
-                return const _ItineraryCarousel(
-                  key: ValueKey('itinerary-placeholder'),
-                );
-              }
-              return _PlanItineraryCard(
-                key: ValueKey('plan-${plan.tripId}'),
-                plan: plan,
-              );
-            },
+            data: (plan) => _CuratedItineraryCard(
+              key: ValueKey(
+                plan == null
+                    ? 'itinerary-placeholder'
+                    : "plan-${plan.draft.city.isEmpty ? 'unspecified' : plan.draft.city}",
+              ),
+              plan: plan,
+            ),
             loading: () => const _PlanLoadingCard(
               key: ValueKey('plan-loading'),
             ),
@@ -1026,32 +1059,247 @@ class _ItineraryPreview extends StatelessWidget {
   }
 }
 
-class _ItineraryCarousel extends StatelessWidget {
-  const _ItineraryCarousel({super.key});
+class _CuratedItineraryCard extends StatelessWidget {
+  const _CuratedItineraryCard({super.key, required this.plan});
 
-  static const _cardCount = 3;
+  final PlanResponse? plan;
 
   @override
   Widget build(BuildContext context) {
-    final size = MediaQuery.of(context).size;
-    final viewportHeight = math.min(420.0, math.max(size.height * 0.40, 320.0));
-    final cardWidth = math.min(360.0, size.width * 0.78);
+    final itinerary = _buildItineraryData(plan);
+    final theme = Theme.of(context);
+    final textTheme = theme.textTheme;
+    final palette = theme.extension<PlanGeniePalette>();
+    final brandColor = palette?.primaryIndicator ?? theme.colorScheme.primary;
+    final description = itinerary.hasGeneratedPlan
+        ? itinerary.description
+        : _emptyItineraryDescription;
+    final budgetText = _formatBudget(itinerary.totalBudget);
 
-    return SizedBox(
-      height: viewportHeight,
-      child: ListView.separated(
-        scrollDirection: Axis.horizontal,
-        physics: const BouncingScrollPhysics(),
-        padding: const EdgeInsets.symmetric(horizontal: 4),
-        itemCount: _cardCount,
-        separatorBuilder: (_, __) => const SizedBox(width: 18),
-        itemBuilder: (context, index) {
-          return AnimatedContainer(
-            duration: const Duration(milliseconds: 320),
-            curve: Curves.easeOut,
-            child: SizedBox(
-              width: cardWidth,
-              child: _ItineraryCard(index: index),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final screenSize = MediaQuery.of(context).size;
+        final availableWidth = constraints.maxWidth.isFinite
+            ? constraints.maxWidth
+            : screenSize.width;
+        final isDesktop = screenSize.width >= 1024;
+        final isLargeCard = availableWidth > 860;
+        final maxWidth =
+            (isLargeCard ? 560.0 : availableWidth).clamp(0.0, 560.0);
+        final effectiveWidth = maxWidth > 0 ? maxWidth : 560.0;
+
+        final card = ConstrainedBox(
+          constraints: BoxConstraints(maxWidth: effectiveWidth),
+          child: Material(
+            color: Colors.transparent,
+            child: InkWell(
+              borderRadius: BorderRadius.circular(28),
+              onTap: () => _showItineraryDialog(context, plan: plan),
+              child: Ink(
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(28),
+                  color: Colors.white,
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.06),
+                      blurRadius: 28,
+                      offset: const Offset(0, 18),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    ClipRRect(
+                      borderRadius: const BorderRadius.only(
+                        topLeft: Radius.circular(28),
+                        topRight: Radius.circular(28),
+                      ),
+                      child: AspectRatio(
+                        aspectRatio: isDesktop
+                            ? 16 / 9
+                            : (isLargeCard ? 21 / 10 : 3 / 2),
+                        child: _ItineraryImage(url: itinerary.imageUrl),
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(24, 22, 24, 24),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 12,
+                                  vertical: 6,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: brandColor.withValues(alpha: 0.12),
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: Row(
+                                  children: [
+                                    Icon(
+                                      Icons.auto_awesome,
+                                      size: 16,
+                                      color: brandColor,
+                                    ),
+                                    const SizedBox(width: 6),
+                                    Text(
+                                      'Itinerary',
+                                      style: textTheme.labelMedium?.copyWith(
+                                        color: brandColor,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              const Spacer(),
+                              Icon(
+                                Icons.arrow_outward_rounded,
+                                color: brandColor.withValues(alpha: 0.85),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 16),
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Icon(
+                                Icons.location_on_outlined,
+                                color: brandColor,
+                              ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Text(
+                                  itinerary.city,
+                                  style: textTheme.headlineSmall?.copyWith(
+                                    color: const Color(0xFF1E293B),
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 12),
+                          Text(
+                            description,
+                            style: textTheme.bodyMedium?.copyWith(
+                              color: const Color(0xFF475569),
+                              height: 1.5,
+                            ),
+                          ),
+                          if (budgetText != null) ...[
+                            const SizedBox(height: 14),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 14,
+                                vertical: 8,
+                              ),
+                              decoration: BoxDecoration(
+                                color: brandColor.withValues(alpha: 0.1),
+                                borderRadius: BorderRadius.circular(14),
+                                border: Border.all(
+                                  color: brandColor.withValues(alpha: 0.2),
+                                ),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(
+                                    Icons.currency_rupee,
+                                    size: 18,
+                                    color: brandColor,
+                                  ),
+                                  const SizedBox(width: 6),
+                                  Text(
+                                    'Indicative budget $budgetText',
+                                    style: textTheme.labelLarge?.copyWith(
+                                      color: brandColor,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                          const SizedBox(height: 4),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        );
+
+        if (isDesktop) {
+          final horizontalPadding = screenSize.width >= 1440 ? 64.0 : 32.0;
+          return Align(
+            alignment: Alignment.topLeft,
+            child: Padding(
+              padding: EdgeInsets.only(right: horizontalPadding),
+              child: card,
+            ),
+          );
+        }
+
+        return Center(child: card);
+      },
+    );
+  }
+}
+
+class _ItineraryImage extends StatelessWidget {
+  const _ItineraryImage({required this.url});
+
+  final String url;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = Theme.of(context).extension<PlanGeniePalette>();
+    final brandColor =
+        palette?.primaryIndicator ?? Theme.of(context).colorScheme.primary;
+    final resolvedUrl = url.isEmpty ? _fallbackCityImageUrl : url;
+    return DecoratedBox(
+      decoration: const BoxDecoration(color: Color(0xFFE2E8F0)),
+      child: Image.network(
+        resolvedUrl,
+        fit: BoxFit.cover,
+        loadingBuilder: (context, child, loadingProgress) {
+          if (loadingProgress == null) {
+            return child;
+          }
+          return Stack(
+            fit: StackFit.expand,
+            children: [
+              child,
+              const Center(
+                child: SizedBox.square(
+                  dimension: 32,
+                  child: CircularProgressIndicator(strokeWidth: 3),
+                ),
+              ),
+            ],
+          );
+        },
+        errorBuilder: (context, error, _) {
+          return Container(
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                colors: [Color(0xFFE0F2FE), Color(0xFFDBEAFE)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+            ),
+            alignment: Alignment.center,
+            child: Icon(
+              Icons.landscape_rounded,
+              size: 40,
+              color: brandColor.withValues(alpha: 0.65),
             ),
           );
         },
@@ -1060,80 +1308,640 @@ class _ItineraryCarousel extends StatelessWidget {
   }
 }
 
-class _ItineraryCard extends StatelessWidget {
-  const _ItineraryCard({required this.index});
+const _emptyItineraryDescription =
+    'Once you click Plan My Trip, we will add tailored details here.';
+const _fallbackCityImageUrl =
+    'https://images.unsplash.com/photo-1528909514045-2fa4ac7a08ba?auto=format&fit=crop&w=1400&q=80';
 
+class _CuratedItineraryData {
+  const _CuratedItineraryData({
+    required this.city,
+    required this.description,
+    required this.days,
+    required this.imageUrl,
+    required this.hasGeneratedPlan,
+    this.destinationBlurb = '',
+    this.totalBudget,
+  });
+
+  final String city;
+  final String description;
+  final List<_CuratedItineraryDayData> days;
+  final String imageUrl;
+  final bool hasGeneratedPlan;
+  final String destinationBlurb;
+  final double? totalBudget;
+}
+
+class _CuratedItineraryDayData {
+  const _CuratedItineraryDayData({
+    required this.title,
+    required this.activities,
+  });
+
+  final String title;
+  final List<_CuratedItineraryActivity> activities;
+}
+
+class _CuratedItineraryActivity {
+  const _CuratedItineraryActivity({
+    required this.title,
+    this.time,
+    this.tag,
+  });
+
+  final String title;
+  final String? time;
+  final String? tag;
+}
+
+const _fallbackItineraryData = _CuratedItineraryData(
+  city: 'Your itinerary',
+  description: _emptyItineraryDescription,
+  days: [],
+  imageUrl: _fallbackCityImageUrl,
+  hasGeneratedPlan: false,
+  destinationBlurb:
+      'Tell us your dream destination and we will craft a story worth travelling for.',
+  totalBudget: null,
+);
+
+_CuratedItineraryData _buildItineraryData(PlanResponse? plan) {
+  if (plan == null) {
+    return _fallbackItineraryData;
+  }
+
+  final draft = plan.draft;
+  final cityName = draft.city.isEmpty ? 'Your itinerary' : draft.city;
+  final description = _planSummaryFrom(plan);
+  final imageUrl =
+      draft.imageUrl.isNotEmpty ? draft.imageUrl : _fallbackCityImageUrl;
+  final destinationBlurb = draft.destinationBlurb;
+  final totalBudget = draft.totalBudget;
+
+  if (draft.days.isEmpty) {
+    return _CuratedItineraryData(
+      city: cityName,
+      description: description,
+      days: const [],
+      imageUrl: imageUrl,
+      hasGeneratedPlan: true,
+      destinationBlurb: destinationBlurb,
+      totalBudget: totalBudget,
+    );
+  }
+
+  final days = <_CuratedItineraryDayData>[];
+  for (var index = 0; index < draft.days.length; index++) {
+    final day = draft.days[index];
+    final displayTitle = day.date.isEmpty
+        ? 'Day ${index + 1}'
+        : 'Day ${index + 1} • ${day.date}';
+
+    if (day.blocks.isEmpty) {
+      days.add(
+        _CuratedItineraryDayData(
+          title: displayTitle,
+          activities: const [
+            _CuratedItineraryActivity(
+              title:
+                  'No specific activities were returned for this day just yet.',
+            ),
+          ],
+        ),
+      );
+      continue;
+    }
+
+    final activities = <_CuratedItineraryActivity>[];
+    for (final block in day.blocks) {
+      final normalizedTime = block.time.isEmpty ? null : block.time;
+      activities.add(
+        _CuratedItineraryActivity(
+          title: block.title,
+          time: normalizedTime,
+          tag: block.tag,
+        ),
+      );
+    }
+
+    days.add(
+      _CuratedItineraryDayData(
+        title: displayTitle,
+        activities: activities,
+      ),
+    );
+  }
+
+  return _CuratedItineraryData(
+    city: cityName,
+    description: description,
+    days: days,
+    imageUrl: imageUrl,
+    hasGeneratedPlan: true,
+    destinationBlurb: destinationBlurb,
+    totalBudget: totalBudget,
+  );
+}
+
+String _planSummaryFrom(PlanResponse plan) {
+  final draft = plan.draft;
+  final cityDisplay = draft.city.isEmpty ? 'your trip' : draft.city;
+
+  if (draft.days.isEmpty) {
+    return 'We are curating day-by-day experiences for $cityDisplay. Tap to review the plan in progress.';
+  }
+
+  final firstDay = draft.days.first;
+  if (firstDay.blocks.isEmpty) {
+    return 'Your $cityDisplay itinerary is still being refined. Tap to review the available outline.';
+  }
+
+  final firstBlock = firstDay.blocks.first;
+  final prefix = firstBlock.time.isEmpty ? '' : '${firstBlock.time} • ';
+  return 'Day 1 in $cityDisplay starts with $prefix${firstBlock.title}. Tap to explore the full itinerary.';
+}
+
+String? _formatBudget(double? value) {
+  if (value == null || value <= 0) {
+    return null;
+  }
+  final rupees = value.round();
+  final formatted = _formatIndianNumber(rupees.abs());
+  final sign = rupees < 0 ? '-' : '';
+  return '₹$sign$formatted';
+}
+
+String _formatIndianNumber(int number) {
+  if (number < 1000) {
+    return number.toString();
+  }
+  final str = number.toString();
+  final lastThree = str.substring(str.length - 3);
+  var remaining = str.substring(0, str.length - 3);
+  final groups = <String>[];
+  while (remaining.isNotEmpty) {
+    final take = remaining.length > 2 ? 2 : remaining.length;
+    final startIndex = remaining.length - take;
+    groups.add(remaining.substring(startIndex));
+    remaining = remaining.substring(0, startIndex);
+  }
+  final buffer = StringBuffer();
+  for (var i = groups.length - 1; i >= 0; i--) {
+    buffer.write(groups[i]);
+    buffer.write(',');
+  }
+  buffer.write(lastThree);
+  return buffer.toString();
+}
+
+Future<void> _showItineraryDialog(BuildContext context,
+    {required PlanResponse? plan}) {
+  final itinerary = _buildItineraryData(plan);
+  return showDialog<void>(
+    context: context,
+    barrierColor: Colors.black.withValues(alpha: 0.35),
+    builder: (context) => _CuratedItineraryDialog(itinerary: itinerary),
+  );
+}
+
+class _CuratedItineraryDialog extends StatelessWidget {
+  const _CuratedItineraryDialog({required this.itinerary});
+
+  final _CuratedItineraryData itinerary;
+
+  @override
+  Widget build(BuildContext context) {
+    final media = MediaQuery.of(context);
+    final maxHeight = (media.size.height * 0.78).clamp(420.0, 720.0);
+    final maxWidth = media.size.width >= 1024 ? 720.0 : 560.0;
+    final dayCount = itinerary.days.length;
+    final dayLabel = dayCount == 0
+        ? 'Awaiting schedule'
+        : '$dayCount day${dayCount == 1 ? '' : 's'} curated';
+    final budgetText = _formatBudget(itinerary.totalBudget);
+
+    return Dialog(
+      insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
+      clipBehavior: Clip.antiAlias,
+      child: ConstrainedBox(
+        constraints: BoxConstraints(maxWidth: maxWidth, maxHeight: maxHeight),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Stack(
+              children: [
+                SizedBox(
+                  height: 220,
+                  width: double.infinity,
+                  child: _ItineraryImage(url: itinerary.imageUrl),
+                ),
+                Positioned(
+                  top: 16,
+                  left: 16,
+                  child: Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withValues(alpha: 0.35),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(
+                          Icons.location_on_outlined,
+                          size: 16,
+                          color: Colors.white,
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          itinerary.city,
+                          style:
+                              Theme.of(context).textTheme.labelMedium?.copyWith(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                Positioned(
+                  top: 16,
+                  right: 16,
+                  child: IconButton(
+                    tooltip: 'Close',
+                    onPressed: () => Navigator.of(context).pop(),
+                    style: IconButton.styleFrom(
+                      backgroundColor: Colors.white,
+                      foregroundColor: const Color(0xFF0F172A),
+                      shape: const CircleBorder(),
+                    ),
+                    icon: const Icon(Icons.close_rounded),
+                  ),
+                ),
+              ],
+            ),
+            Expanded(
+              child: SingleChildScrollView(
+                physics: const BouncingScrollPhysics(),
+                padding: const EdgeInsets.fromLTRB(24, 24, 24, 28),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Itinerary overview',
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.w700,
+                            color: const Color(0xFF0F172A),
+                          ),
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      itinerary.hasGeneratedPlan
+                          ? itinerary.description
+                          : _emptyItineraryDescription,
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                            color: const Color(0xFF475569),
+                            height: 1.5,
+                          ),
+                    ),
+                    if (itinerary.destinationBlurb.isNotEmpty) ...[
+                      const SizedBox(height: 12),
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFEFF6FF),
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(
+                            color:
+                                const Color(0xFF2563EB).withValues(alpha: 0.15),
+                          ),
+                        ),
+                        child: Text(
+                          itinerary.destinationBlurb,
+                          style:
+                              Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                    color: const Color(0xFF1E3A8A),
+                                    height: 1.5,
+                                  ),
+                        ),
+                      ),
+                    ],
+                    const SizedBox(height: 18),
+                    Wrap(
+                      spacing: 10,
+                      runSpacing: 10,
+                      children: [
+                        _InfoPill(
+                          icon: Icons.calendar_today_outlined,
+                          label: dayLabel,
+                        ),
+                        _InfoPill(
+                          icon: Icons.auto_awesome,
+                          label: itinerary.hasGeneratedPlan
+                              ? 'Personalised for you'
+                              : 'Awaiting generation',
+                        ),
+                        if (budgetText != null)
+                          _InfoPill(
+                            icon: Icons.currency_rupee,
+                            label: 'Budget: $budgetText',
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: 24),
+                    const Divider(height: 1, color: Color(0xFFE2E8F0)),
+                    const SizedBox(height: 24),
+                    if (itinerary.days.isEmpty)
+                      _ItineraryEmptyState(
+                        hasPlan: itinerary.hasGeneratedPlan,
+                      )
+                    else
+                      ...List.generate(
+                        itinerary.days.length,
+                        (index) => _ItineraryDaySection(
+                          day: itinerary.days[index],
+                          index: index,
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _InfoPill extends StatelessWidget {
+  const _InfoPill({required this.icon, required this.label});
+
+  final IconData icon;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = Theme.of(context).extension<PlanGeniePalette>();
+    final brandColor =
+        palette?.primaryIndicator ?? Theme.of(context).colorScheme.primary;
+    final textTheme = Theme.of(context).textTheme;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(14),
+        color: brandColor.withValues(alpha: 0.1),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 16, color: brandColor),
+          const SizedBox(width: 6),
+          Text(
+            label,
+            style: textTheme.labelSmall?.copyWith(
+              color: brandColor,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ItineraryEmptyState extends StatelessWidget {
+  const _ItineraryEmptyState({required this.hasPlan});
+
+  final bool hasPlan;
+
+  @override
+  Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+    final palette = Theme.of(context).extension<PlanGeniePalette>();
+    final brandColor =
+        palette?.primaryIndicator ?? Theme.of(context).colorScheme.primary;
+    final headline = hasPlan ? 'Draft in progress' : 'Plan not generated yet';
+    final message = hasPlan
+        ? 'Day-level suggestions are being prepared. We will refresh this view once the full schedule is ready.'
+        : _emptyItineraryDescription;
+
+    return Container(
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8FAFF),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.hourglass_top_rounded, color: brandColor),
+              const SizedBox(width: 10),
+              Text(
+                headline,
+                style: textTheme.titleSmall?.copyWith(
+                  fontWeight: FontWeight.w700,
+                  color: const Color(0xFF1E293B),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Text(
+            message,
+            style: textTheme.bodyMedium?.copyWith(
+              color: const Color(0xFF475569),
+              height: 1.5,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ItineraryDaySection extends StatelessWidget {
+  const _ItineraryDaySection({required this.day, required this.index});
+
+  final _CuratedItineraryDayData day;
   final int index;
 
   @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
-    final colorScheme = Theme.of(context).colorScheme;
-
+    final palette = Theme.of(context).extension<PlanGeniePalette>();
+    final brandColor =
+        palette?.primaryIndicator ?? Theme.of(context).colorScheme.primary;
     return Container(
+      margin: const EdgeInsets.only(bottom: 20),
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(28),
-        gradient: const LinearGradient(
-          colors: [Color(0xFFFFFFFF), Color(0xFFF5F8FF)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
+        borderRadius: BorderRadius.circular(24),
+        color: Colors.white,
+        border: Border.all(color: const Color(0xFFE2E8F0)),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
-            blurRadius: 32,
-            offset: const Offset(0, 18),
+            color: Colors.black.withValues(alpha: 0.02),
+            blurRadius: 16,
+            offset: const Offset(0, 12),
           ),
         ],
       ),
-      padding: const EdgeInsets.all(24),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(20),
-              color: colorScheme.primary.withValues(alpha: 0.08),
-            ),
-            child: const Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _PlaceholderLine(widthFactor: 0.55),
-                SizedBox(height: 12),
-                _PlaceholderLine(widthFactor: 0.8),
-                SizedBox(height: 8),
-                _PlaceholderLine(widthFactor: 0.4),
-              ],
-            ),
+          Row(
+            children: [
+              Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: brandColor.withValues(alpha: 0.12),
+                  shape: BoxShape.circle,
+                ),
+                alignment: Alignment.center,
+                child: Text(
+                  'D${index + 1}',
+                  style: textTheme.labelMedium?.copyWith(
+                    color: brandColor,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  day.title,
+                  style: textTheme.titleMedium?.copyWith(
+                    color: const Color(0xFF1E293B),
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            ],
           ),
-          const SizedBox(height: 24),
-          Text(
-            'Itinerary ${index + 1}',
-            style: textTheme.titleMedium?.copyWith(
-              fontWeight: FontWeight.w700,
-              color: const Color(0xFF1E3A8A),
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Your personalised trip story will appear here once a plan is generated.',
-            style: textTheme.bodyMedium?.copyWith(
-              color: const Color(0xFF475569),
-              height: 1.4,
-            ),
-          ),
-          const Spacer(),
-          OutlinedButton(
-            onPressed: () {},
-            style: OutlinedButton.styleFrom(
-              foregroundColor: const Color(0xFF1E3A8A),
-              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16),
+          const SizedBox(height: 18),
+          if (day.activities.isEmpty)
+            Text(
+              'No activities added yet.',
+              style: textTheme.bodyMedium?.copyWith(
+                color: const Color(0xFF475569),
+              ),
+            )
+          else
+            ...List.generate(
+              day.activities.length,
+              (activityIndex) => _ItineraryTimelineTile(
+                activity: day.activities[activityIndex],
+                isLast: activityIndex == day.activities.length - 1,
               ),
             ),
-            child: const Text('Stay tuned'),
+        ],
+      ),
+    );
+  }
+}
+
+class _ItineraryTimelineTile extends StatelessWidget {
+  const _ItineraryTimelineTile({
+    required this.activity,
+    required this.isLast,
+  });
+
+  final _CuratedItineraryActivity activity;
+  final bool isLast;
+
+  @override
+  Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+    final palette = Theme.of(context).extension<PlanGeniePalette>();
+    final brandColor =
+        palette?.primaryIndicator ?? Theme.of(context).colorScheme.primary;
+
+    return Padding(
+      padding: EdgeInsets.only(bottom: isLast ? 0 : 16),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Column(
+            children: [
+              Container(
+                width: 12,
+                height: 12,
+                decoration: BoxDecoration(
+                  color: brandColor,
+                  shape: BoxShape.circle,
+                ),
+              ),
+              if (!isLast)
+                Container(
+                  width: 2,
+                  height: 44,
+                  color: brandColor.withValues(alpha: 0.2),
+                ),
+            ],
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Container(
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: const Color(0xFFE2E8F0)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (activity.time != null && activity.time!.isNotEmpty) ...[
+                    Text(
+                      activity.time!,
+                      style: textTheme.labelMedium?.copyWith(
+                        color: brandColor,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                  ],
+                  Text(
+                    activity.title,
+                    style: textTheme.bodyLarge?.copyWith(
+                      color: const Color(0xFF0F172A),
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  if (activity.tag != null && activity.tag!.isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 8),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 6,
+                        ),
+                        decoration: BoxDecoration(
+                          color: brandColor.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Text(
+                          '#${activity.tag}',
+                          style: textTheme.labelSmall?.copyWith(
+                            color: brandColor,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
           ),
         ],
       ),
@@ -1234,99 +2042,6 @@ class _PlanErrorCallout extends StatelessWidget {
             style: textTheme.bodySmall?.copyWith(
               color: colorScheme.error.withValues(alpha: 0.8),
               height: 1.4,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _PlanItineraryCard extends StatelessWidget {
-  const _PlanItineraryCard({super.key, required this.plan});
-
-  final PlanResponse plan;
-
-  @override
-  Widget build(BuildContext context) {
-    final draft = plan.draft;
-    final days = draft.days;
-    final textTheme = Theme.of(context).textTheme;
-    final colorScheme = Theme.of(context).colorScheme;
-
-    return Container(
-      padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(28),
-        gradient: const LinearGradient(
-          colors: [Color(0xFFFFFFFF), Color(0xFFF5F8FF)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
-            blurRadius: 32,
-            offset: const Offset(0, 18),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            draft.city.isEmpty ? 'Your itinerary' : draft.city,
-            style: textTheme.headlineSmall?.copyWith(
-              color: const Color(0xFF1E3A8A),
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            'Trip ID: ${plan.tripId}',
-            style: textTheme.bodySmall?.copyWith(
-              color: const Color(0xFF475569),
-            ),
-          ),
-          const SizedBox(height: 18),
-          if (days.isEmpty)
-            Text(
-              'No day-level details were returned yet.',
-              style: textTheme.bodyMedium?.copyWith(
-                color: const Color(0xFF475569),
-              ),
-            )
-          else
-            ...List.generate(
-              math.min(3, days.length),
-              (index) => _PlanItineraryDay(
-                day: days[index],
-                index: index,
-              ),
-            ),
-          if (days.length > 3)
-            Padding(
-              padding: const EdgeInsets.only(top: 8),
-              child: Text(
-                '+ ${days.length - 3} more day(s) in the draft.',
-                style: textTheme.bodySmall?.copyWith(
-                  color: colorScheme.primary.withValues(alpha: 0.8),
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ),
-          const SizedBox(height: 24),
-          Align(
-            alignment: Alignment.centerRight,
-            child: FilledButton.tonal(
-              onPressed: () {
-                Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (_) => ItineraryPage(plan: plan),
-                  ),
-                );
-              },
-              child: const Text('View Itinerary'),
             ),
           ),
         ],
@@ -1510,12 +2225,6 @@ class ItineraryPage extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 6),
-                  Text(
-                    'Trip ID: ${plan.tripId}',
-                    style: textTheme.bodySmall?.copyWith(
-                      color: const Color(0xFF475569),
-                    ),
-                  ),
                   const SizedBox(height: 24),
                   ...List.generate(
                     days.length,
@@ -1527,27 +2236,6 @@ class ItineraryPage extends StatelessWidget {
                   ),
                 ],
               ),
-      ),
-    );
-  }
-}
-
-class _PlaceholderLine extends StatelessWidget {
-  const _PlaceholderLine({required this.widthFactor});
-
-  final double widthFactor;
-
-  @override
-  Widget build(BuildContext context) {
-    final color = Theme.of(context).colorScheme.primary.withValues(alpha: 0.12);
-    return FractionallySizedBox(
-      widthFactor: widthFactor,
-      child: Container(
-        height: 12,
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(10),
-          color: color,
-        ),
       ),
     );
   }

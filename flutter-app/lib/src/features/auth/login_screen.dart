@@ -52,25 +52,24 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     final verticalPadding = mediaQuery.size.height >= 840 ? 40.0 : 24.0;
     final tabViewHeight = mediaQuery.size.height >= 780 ? 320.0 : 280.0;
 
-    final colorScheme = ColorScheme.fromSeed(
-      seedColor: const Color(0xFF2563EB),
-      brightness: Brightness.light,
-    );
+    final palette = theme.extension<PlanGeniePalette>();
+    final brandColor = palette?.primaryIndicator ?? theme.colorScheme.primary;
 
     final loginTheme = theme.copyWith(
-      colorScheme: colorScheme,
+      colorScheme: theme.colorScheme.copyWith(
+        primary: brandColor,
+        surfaceTint: Colors.transparent,
+      ),
       scaffoldBackgroundColor: const Color(0xFFF8FAFF),
       cardColor: Colors.white,
       filledButtonTheme: FilledButtonThemeData(
         style: FilledButton.styleFrom(
-          backgroundColor: const Color(0xFF2563EB),
+          backgroundColor: brandColor,
           foregroundColor: Colors.white,
           textStyle: theme.textTheme.titleMedium,
         ),
       ),
     );
-
-    final palette = loginTheme.extension<PlanGeniePalette>();
 
     return Theme(
       data: loginTheme,
@@ -81,7 +80,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             gradient: LinearGradient(
               colors: [
                 palette?.backgroundStart ?? const Color(0xFFDBEAFE),
-                palette?.backgroundEnd ?? const Color(0xFFF8FAFF),
+                palette?.backgroundEnd ?? const Color(0xFFF5F9FF),
               ],
               begin: Alignment.topCenter,
               end: Alignment.bottomCenter,
@@ -113,8 +112,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       constraints: BoxConstraints(maxWidth: maxContentWidth),
                       child: Card(
                         elevation: 12,
-                        shadowColor:
-                            const Color(0xFF2563EB).withValues(alpha: 0.18),
+                        shadowColor: brandColor.withValues(alpha: 0.18),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(28),
                         ),
