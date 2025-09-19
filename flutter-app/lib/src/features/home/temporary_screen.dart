@@ -21,6 +21,7 @@ class TemporaryScreen extends ConsumerWidget {
             onPressed: () async {
               final navigator = Navigator.of(context);
               await ref.read(firebaseAuthProvider).signOut();
+              ref.invalidate(planControllerProvider);
               navigator.pushAndRemoveUntil(
                 MaterialPageRoute(builder: (_) => const AuthGate()),
                 (route) => false,
@@ -163,8 +164,10 @@ class _HomeBodyState extends ConsumerState<_HomeBody> {
                         ),
                         items: const [
                           DropdownMenuItem(value: 1, child: Text('1 – Chill')),
-                          DropdownMenuItem(value: 2, child: Text('2 – Balanced')),
-                          DropdownMenuItem(value: 3, child: Text('3 – Adventurous')),
+                          DropdownMenuItem(
+                              value: 2, child: Text('2 – Balanced')),
+                          DropdownMenuItem(
+                              value: 3, child: Text('3 – Adventurous')),
                           DropdownMenuItem(value: 4, child: Text('4 – Party')),
                         ],
                         onChanged: planState.isLoading
@@ -212,7 +215,8 @@ class _HomeBodyState extends ConsumerState<_HomeBody> {
 
     if (!_startDate.isBefore(_endDate) && _startDate != _endDate) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('End date must be on or after the start date.')),
+        const SnackBar(
+            content: Text('End date must be on or after the start date.')),
       );
       return;
     }
@@ -232,7 +236,8 @@ class _HomeBodyState extends ConsumerState<_HomeBody> {
 
   Future<void> _pickDate({required bool isStart}) async {
     final initialDate = isStart ? _startDate : _endDate;
-    final firstDate = isStart ? DateTime.now().subtract(const Duration(days: 1)) : _startDate;
+    final firstDate =
+        isStart ? DateTime.now().subtract(const Duration(days: 1)) : _startDate;
     final lastDate = DateTime.now().add(const Duration(days: 365));
 
     final picked = await showDatePicker(
@@ -353,9 +358,7 @@ class _PlanResultView extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('Trip ID: ${response.tripId}', style: textTheme.titleMedium),
-        const SizedBox(height: 8),
-        Text('City: ${response.draft.city}', style: textTheme.bodyLarge),
+        Text('City: ${response.draft.city}', style: textTheme.titleMedium),
         const SizedBox(height: 16),
         if (days.isEmpty)
           Text(
@@ -388,7 +391,8 @@ class _PlanDayTile extends StatelessWidget {
           if (blocks.isEmpty)
             Padding(
               padding: const EdgeInsets.only(left: 16.0, top: 4.0),
-              child: Text('No blocks suggested for this day.', style: textTheme.bodySmall),
+              child: Text('No blocks suggested for this day.',
+                  style: textTheme.bodySmall),
             )
           else
             Padding(
@@ -400,7 +404,8 @@ class _PlanDayTile extends StatelessWidget {
                   final tag = block.tag == null ? '' : ' • ${block.tag}';
                   return Padding(
                     padding: const EdgeInsets.only(bottom: 4.0),
-                    child: Text('$time – ${block.title}$tag', style: textTheme.bodySmall),
+                    child: Text('$time – ${block.title}$tag',
+                        style: textTheme.bodySmall),
                   );
                 }).toList(),
               ),

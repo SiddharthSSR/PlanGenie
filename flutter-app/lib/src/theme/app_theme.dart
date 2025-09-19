@@ -12,7 +12,8 @@ class PlanGenieTheme {
       secondaryContainer: const Color(0xFFDBEAFE),
       tertiary: const Color(0xFF1E40AF),
       tertiaryContainer: const Color(0xFFDBEAFE),
-      surfaceTint: const Color(0xFF2563EB),
+      surfaceTint: Colors.transparent,
+      surface: Colors.white,
     );
 
     final base = ThemeData(
@@ -64,6 +65,35 @@ class PlanGenieTheme {
         foregroundColor: scheme.onSurface,
         elevation: 0,
         centerTitle: false,
+      ),
+      dialogTheme: base.dialogTheme.copyWith(
+        backgroundColor: Colors.white,
+        surfaceTintColor: Colors.transparent,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
+      ),
+      datePickerTheme: base.datePickerTheme.copyWith(
+        backgroundColor: Colors.white,
+        surfaceTintColor: Colors.transparent,
+        headerBackgroundColor: scheme.primary,
+        headerForegroundColor: Colors.white,
+        dayForegroundColor: WidgetStateProperty.resolveWith((states) {
+          if (states.contains(WidgetState.disabled)) {
+            return scheme.onSurface.withValues(alpha: 0.35);
+          }
+          if (states.contains(WidgetState.selected)) {
+            return Colors.white;
+          }
+          return scheme.onSurface;
+        }),
+        dayBackgroundColor: WidgetStateProperty.resolveWith((states) {
+          if (states.contains(WidgetState.selected)) {
+            return scheme.primary;
+          }
+          if (states.contains(WidgetState.hovered)) {
+            return scheme.primary.withValues(alpha: 0.12);
+          }
+          return Colors.transparent;
+        }),
       ),
       inputDecorationTheme: base.inputDecorationTheme.copyWith(
         border: OutlineInputBorder(
