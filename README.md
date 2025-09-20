@@ -1,4 +1,8 @@
-# 🧳 PlanGenie - AI-Powered Travel Planning Platform
+<p align="center">
+  <img src="assets/PlanGenie.png" alt="PlanGenie screenshot" width="600" />
+</p>
+
+# PlanGenie - AI-Powered Travel Planning Platform
 
 **PlanGenie** is an intelligent travel planning platform that leverages AI to create personalized, multi-day itineraries with real-time pricing, location intelligence, and seamless booking experiences. Built for modern travelers who want smart, comprehensive trip planning without the hassle.
 
