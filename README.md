@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/PlanGenie.png" alt="PlanGenie screenshot" width="600" />
+  <img src="assets/PlanGenie.png" alt="PlanGenie screenshot" width="400" />
 </p>
 
 # PlanGenie - AI-Powered Travel Planning Platform
