@@ -5,11 +5,37 @@ FastAPI service that drafts multi-day travel itineraries using Google Vertex AI'
 ## Stack & Architecture
 
 - **FastAPI** application (`main.py`) with comprehensive CORS support and media proxy endpoints
-- **Vertex AI Gemini 1.5 Flash** (`services/gemini.py`) generates intelligent multi-day itineraries with budget estimation
+- **Vertex AI Gemini Models** (`services/gemini.py`) generates intelligent multi-day itineraries with budget estimation
 - **Google Maps Places API (New)** (`services/maps.py`) enriches activities with location data and destination photos
 - **Cloud Firestore** (`services/store.py`) stores generated trips with metadata in a `trip` collection
 - **Secret Manager** integration for secure API key management
 - **Media Proxy** for secure image delivery without exposing API keys to frontend
+
+## Supported AI Models
+
+The backend supports multiple Gemini models for itinerary generation:
+
+| Model | Description | Use Case |
+| --- | --- | --- |
+| **gemini-2.5-flash-lite** ⚡ | **Default** - Ultra-fast model with low latency | **Current choice for production** - Optimized for speed and responsiveness |
+| gemini-2.5-flash | Fast model with good performance | Balanced option for quality and speed |
+| gemini-2.5-pro | High-quality model with advanced capabilities | For complex itineraries requiring detailed planning |
+
+**Current Model**: `gemini-2.5-flash-lite` is used by default for its **low latency** and fast response times, making it ideal for real-time travel planning experiences.
+
+You can specify a different model in the request:
+```json
+{
+  "origin": "DEL",
+  "destination": "JAI",
+  "startDate": "2024-08-01",
+  "endDate": "2024-08-03",
+  "pax": 2,
+  "budget": 25000,
+  "mood": 2,
+  "model": "gemini-2.5-flash"
+}
+```
 
 ## Prerequisites
 

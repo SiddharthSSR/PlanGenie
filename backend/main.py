@@ -72,7 +72,7 @@ class PlanRequest(BaseModel):
     )
     model: str = Field(
         "gemini-2.5-flash-lite",
-        examples=["gemini-2.5-flash-lite", "gemini-2.5-flash-8b"],
+        examples=["gemini-2.5-flash-lite", "gemini-2.5-flash"],
         description="Gemini model to use for generating itinerary"
     )
 
