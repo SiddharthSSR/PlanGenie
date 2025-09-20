@@ -17,7 +17,7 @@ def draft_itinerary_with_gemini(prefs: Dict) -> Dict:
     that is derived from the itinerary (not just echoing user input), and
     includes a one-line destination_blurb.
     """
-    model = GenerativeModel("gemini-1.5-pro")
+    model = GenerativeModel("gemini-1.5-flash")
     mood_label = prefs.get("moodLabel", "balanced")
 
     # Prompt keeps your existing structure, adds clear budgeting + blurb instruction.
