@@ -7,40 +7,20 @@ from google import genai
 
 
 def init_gemini():
-    """Initialize the Gemini client with API key or Vertex AI ADC"""
-    # Check if we should use Vertex AI ADC (no API key needed)
-    use_vertex = os.getenv("GOOGLE_GENAI_USE_VERTEXAI", "").lower() == "true"
+    """Initialize the Gemini client with Vertex AI ADC"""
     project_id = os.getenv("FIRESTORE_PROJECT")
 
-    if use_vertex and project_id:
-        # Use Vertex AI with Application Default Credentials
-        from google.genai.types import HttpOptions
-        return genai.Client(
-            http_options=HttpOptions(api_version="v1"),
-            vertexai=True,
-            project=project_id,
-            location="asia-south1"
-        )
+    if not project_id:
+        raise RuntimeError("FIRESTORE_PROJECT env var is required for Vertex AI")
 
-    # Fallback to API key approach
-    api_key = os.getenv("GEMINI_API_KEY")
-
-    # If no env var, try to get from secret manager (for production)
-    if not api_key:
-        try:
-            from google.cloud import secretmanager
-            if project_id:
-                client = secretmanager.SecretManagerServiceClient()
-                name = client.secret_version_path(project_id, "GEMINI_API_KEY", "latest")
-                response = client.access_secret_version(request={"name": name})
-                api_key = response.payload.data.decode("UTF-8")
-        except Exception:
-            pass
-
-    if not api_key:
-        raise RuntimeError("Either set GOOGLE_GENAI_USE_VERTEXAI=true with FIRESTORE_PROJECT, or provide GEMINI_API_KEY")
-
-    return genai.Client(api_key=api_key)
+    # Use Vertex AI with Application Default Credentials
+    from google.genai.types import HttpOptions
+    return genai.Client(
+        http_options=HttpOptions(api_version="v1"),
+        vertexai=True,
+        project=project_id,
+        location="asia-south1"
+    )
 
 
 def draft_itinerary_with_gemini(prefs: Dict) -> Dict:
