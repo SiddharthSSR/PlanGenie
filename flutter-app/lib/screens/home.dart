@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:plangenie/src/features/auth/providers/auth_providers.dart';
@@ -86,6 +87,11 @@ class _HomePageState extends ConsumerState<HomePage> {
     final raw = _budgetController.text.replaceAll(RegExp(r'[^0-9.]'), '');
     if (raw.isEmpty) return null;
     return double.tryParse(raw);
+  }
+
+  bool get _isBudgetValid {
+    final value = _enteredBudget;
+    return value != null && value > 0;
   }
 
   Future<void> _pickDate({required bool isStart}) async {
@@ -225,13 +231,19 @@ class _HomePageState extends ConsumerState<HomePage> {
       return;
     }
 
+    final enteredBudget = _enteredBudget;
+    if (enteredBudget == null || enteredBudget <= 0) {
+      _showInlineFeedback('Add a valid budget to continue.');
+      return;
+    }
+
     final planRequest = PlanRequest(
       origin: origin,
       destination: destination,
       startDate: _formatForApi(start),
       endDate: _formatForApi(end),
       pax: _travellerCount,
-      budget: (_enteredBudget ?? 25000).round(),
+      budget: enteredBudget.round(),
       mood: _moodCodeFor(_selectedMood),
     );
 
@@ -252,6 +264,7 @@ class _HomePageState extends ConsumerState<HomePage> {
     final parentTheme = Theme.of(context);
     final planState = ref.watch(planControllerProvider);
     final isSubmitting = planState.isLoading;
+    final backendBaseUri = ref.watch(backendBaseUriProvider);
     final seed = parentTheme.colorScheme.primary;
     final lightScheme = ColorScheme.fromSeed(
       seedColor: seed,
@@ -312,10 +325,16 @@ class _HomePageState extends ConsumerState<HomePage> {
                       onToDateTap: () => _pickDate(isStart: false),
                       onSubmit: _submitPlan,
                       isSubmitting: isSubmitting,
+                      isSubmitEnabled: _isBudgetValid,
                     ),
                   ),
                   const SizedBox(height: 28),
-                  _FadeSlideIn(child: _ItineraryPreview(state: planState)),
+                  _FadeSlideIn(
+                    child: _ItineraryPreview(
+                      state: planState,
+                      backendBaseUri: backendBaseUri,
+                    ),
+                  ),
                   const SizedBox(height: 28),
                   const _FadeSlideIn(child: _PopularNowSection()),
                   const SizedBox(height: 28),
@@ -539,6 +558,7 @@ class HeroSection extends StatelessWidget {
     required this.onToDateTap,
     required this.onSubmit,
     required this.isSubmitting,
+    required this.isSubmitEnabled,
   });
 
   final String selectedMood;
@@ -554,10 +574,12 @@ class HeroSection extends StatelessWidget {
   final VoidCallback onToDateTap;
   final VoidCallback onSubmit;
   final bool isSubmitting;
+  final bool isSubmitEnabled;
 
   @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
+    final canSubmit = isSubmitEnabled && !isSubmitting;
 
     return Container(
       padding: const EdgeInsets.all(28),
@@ -631,7 +653,7 @@ class HeroSection extends StatelessWidget {
               final ctaButton = SizedBox(
                 width: isCompact ? double.infinity : null,
                 child: FilledButton(
-                  onPressed: isSubmitting ? null : onSubmit,
+                  onPressed: canSubmit ? onSubmit : null,
                   style: FilledButton.styleFrom(
                     padding: const EdgeInsets.symmetric(
                         horizontal: 28, vertical: 18),
@@ -783,6 +805,20 @@ class PlanForm extends StatelessWidget {
                 ],
               );
 
+        Widget buildBudgetField() {
+          return TextField(
+            controller: budgetController,
+            decoration: _decor(
+              'Budget',
+              '₹ 1,50,000',
+              Icons.account_balance_wallet_outlined,
+            ),
+            keyboardType: TextInputType.number,
+            inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+            textInputAction: TextInputAction.done,
+          );
+        }
+
         final travellerBudgetInputs = isStacked
             ? Column(
                 children: [
@@ -791,15 +827,7 @@ class PlanForm extends StatelessWidget {
                     onChanged: onTravellerCountChanged,
                   ),
                   const SizedBox(height: 16),
-                  TextField(
-                    controller: budgetController,
-                    decoration: _decor(
-                      'Budget',
-                      'ÃƒÂ¢Ã¢Â€ÂšÃ‚Â¹ 1,50,000',
-                      Icons.account_balance_wallet_outlined,
-                    ),
-                    keyboardType: TextInputType.number,
-                  ),
+                  buildBudgetField(),
                 ],
               )
             : Row(
@@ -812,15 +840,7 @@ class PlanForm extends StatelessWidget {
                   ),
                   const SizedBox(width: 16),
                   Expanded(
-                    child: TextField(
-                      controller: budgetController,
-                      decoration: _decor(
-                        'Budget',
-                        '50,000',
-                        Icons.account_balance_wallet_outlined,
-                      ),
-                      keyboardType: TextInputType.number,
-                    ),
+                    child: buildBudgetField(),
                   ),
                 ],
               );
@@ -1005,9 +1025,13 @@ class MoodChips extends StatelessWidget {
 }
 
 class _ItineraryPreview extends StatelessWidget {
-  const _ItineraryPreview({required this.state});
+  const _ItineraryPreview({
+    required this.state,
+    required this.backendBaseUri,
+  });
 
   final AsyncValue<PlanResponse?> state;
+  final Uri backendBaseUri;
 
   @override
   Widget build(BuildContext context) {
@@ -1017,7 +1041,7 @@ class _ItineraryPreview extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          'Curated itineraries',
+          'Itinerary',
           style: textTheme.titleLarge?.copyWith(
             fontWeight: FontWeight.w700,
             color: const Color(0xFF0F172A),
@@ -1025,7 +1049,7 @@ class _ItineraryPreview extends StatelessWidget {
         ),
         const SizedBox(height: 8),
         Text(
-          'Tap your curated card to preview the full plan. We will plug in live trip data once it is generated.',
+          'Tap your itinerary card to preview the full plan. We will plug in live trip data once it is generated.',
           style: textTheme.bodyMedium?.copyWith(
             color: const Color(0xFF475569),
           ),
@@ -1041,6 +1065,7 @@ class _ItineraryPreview extends StatelessWidget {
                     : "plan-${plan.draft.city.isEmpty ? 'unspecified' : plan.draft.city}",
               ),
               plan: plan,
+              backendBaseUri: backendBaseUri,
             ),
             loading: () => const _PlanLoadingCard(
               key: ValueKey('plan-loading'),
@@ -1057,13 +1082,21 @@ class _ItineraryPreview extends StatelessWidget {
 }
 
 class _CuratedItineraryCard extends StatelessWidget {
-  const _CuratedItineraryCard({super.key, required this.plan});
+  const _CuratedItineraryCard({
+    super.key,
+    required this.plan,
+    required this.backendBaseUri,
+  });
 
   final PlanResponse? plan;
+  final Uri backendBaseUri;
 
   @override
   Widget build(BuildContext context) {
-    final itinerary = _buildItineraryData(plan);
+    final itinerary = _buildItineraryData(
+      plan,
+      backendBaseUri: backendBaseUri,
+    );
     final theme = Theme.of(context);
     final textTheme = theme.textTheme;
     final palette = theme.extension<PlanGeniePalette>();
@@ -1091,7 +1124,11 @@ class _CuratedItineraryCard extends StatelessWidget {
             color: Colors.transparent,
             child: InkWell(
               borderRadius: BorderRadius.circular(28),
-              onTap: () => _showItineraryDialog(context, plan: plan),
+              onTap: () => _showItineraryDialog(
+                context,
+                plan: plan,
+                backendBaseUri: backendBaseUri,
+              ),
               child: Ink(
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(28),
@@ -1310,6 +1347,24 @@ const _emptyItineraryDescription =
 const _fallbackCityImageUrl =
     'https://images.unsplash.com/photo-1528909514045-2fa4ac7a08ba?auto=format&fit=crop&w=1400&q=80';
 
+String _resolvePlanImageUrl(String rawUrl, Uri backendBaseUri) {
+  final trimmed = rawUrl.trim();
+  if (trimmed.isEmpty) {
+    return '';
+  }
+  final parsed = Uri.tryParse(trimmed);
+  if (parsed == null) {
+    return '';
+  }
+  if (parsed.hasScheme) {
+    return trimmed;
+  }
+  final resolvedUri = backendBaseUri.resolve(trimmed.startsWith('/')
+      ? trimmed
+      : '/$trimmed');
+  return resolvedUri.toString();
+}
+
 class _CuratedItineraryData {
   const _CuratedItineraryData({
     required this.city,
@@ -1363,16 +1418,22 @@ const _fallbackItineraryData = _CuratedItineraryData(
   totalBudget: null,
 );
 
-_CuratedItineraryData _buildItineraryData(PlanResponse? plan) {
+_CuratedItineraryData _buildItineraryData(
+  PlanResponse? plan, {
+  required Uri backendBaseUri,
+}) {
   if (plan == null) {
     return _fallbackItineraryData;
   }
 
   final draft = plan.draft;
-  final cityName = draft.city.isEmpty ? 'Your itinerary' : draft.city;
+  final normalizedCity = draft.city.trim();
+  final cityName = normalizedCity.isEmpty ? 'Your itinerary' : normalizedCity;
   final description = _planSummaryFrom(plan);
+  final resolvedImageUrl =
+      _resolvePlanImageUrl(draft.imageUrl, backendBaseUri);
   final imageUrl =
-      draft.imageUrl.isNotEmpty ? draft.imageUrl : _fallbackCityImageUrl;
+      resolvedImageUrl.isNotEmpty ? resolvedImageUrl : _fallbackCityImageUrl;
   final destinationBlurb = draft.destinationBlurb;
   final totalBudget = draft.totalBudget;
 
@@ -1492,9 +1553,15 @@ String _formatIndianNumber(int number) {
   return buffer.toString();
 }
 
-Future<void> _showItineraryDialog(BuildContext context,
-    {required PlanResponse? plan}) {
-  final itinerary = _buildItineraryData(plan);
+Future<void> _showItineraryDialog(
+  BuildContext context, {
+  required PlanResponse? plan,
+  required Uri backendBaseUri,
+}) {
+  final itinerary = _buildItineraryData(
+    plan,
+    backendBaseUri: backendBaseUri,
+  );
   return showDialog<void>(
     context: context,
     barrierColor: Colors.black.withValues(alpha: 0.35),
@@ -1515,7 +1582,7 @@ class _CuratedItineraryDialog extends StatelessWidget {
     final dayCount = itinerary.days.length;
     final dayLabel = dayCount == 0
         ? 'Awaiting schedule'
-        : '$dayCount day${dayCount == 1 ? '' : 's'} curated';
+        : '$dayCount day${dayCount == 1 ? '' : 's'} itinerary';
     final budgetText = _formatBudget(itinerary.totalBudget);
 
     return Dialog(
