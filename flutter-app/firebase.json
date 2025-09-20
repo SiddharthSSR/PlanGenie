@@ -1,1 +1,47 @@
-{"flutter":{"platforms":{"dart":{"lib/firebase_options.dart":{"projectId":"plan-genie-hackathon","configurations":{"android":"1:919329399276:android:40d62c5d23a523837da0c9","ios":"1:919329399276:ios:a15a9e895b51a5657da0c9","macos":"1:919329399276:ios:a15a9e895b51a5657da0c9","web":"1:919329399276:web:d15afe6e6003e8bb7da0c9","windows":"1:919329399276:web:9dda4ece4de323ad7da0c9"}}},"android":{"default":{"projectId":"plan-genie-hackathon","appId":"1:919329399276:android:40d62c5d23a523837da0c9","fileOutput":"android/app/google-services.json"}},"ios":{"default":{"projectId":"plan-genie-hackathon","appId":"1:919329399276:ios:a15a9e895b51a5657da0c9","uploadDebugSymbols":false,"fileOutput":"ios/Runner/GoogleService-Info.plist"}}}}}
+{
+  "flutter": {
+    "platforms": {
+      "dart": {
+        "lib/firebase_options.dart": {
+          "projectId": "plan-genie-hackathon",
+          "configurations": {
+            "android": "1:919329399276:android:40d62c5d23a523837da0c9",
+            "ios": "1:919329399276:ios:a15a9e895b51a5657da0c9",
+            "macos": "1:919329399276:ios:a15a9e895b51a5657da0c9",
+            "web": "1:919329399276:web:d15afe6e6003e8bb7da0c9",
+            "windows": "1:919329399276:web:9dda4ece4de323ad7da0c9"
+          }
+        }
+      },
+      "android": {
+        "default": {
+          "projectId": "plan-genie-hackathon",
+          "appId": "1:919329399276:android:40d62c5d23a523837da0c9",
+          "fileOutput": "android/app/google-services.json"
+        }
+      },
+      "ios": {
+        "default": {
+          "projectId": "plan-genie-hackathon",
+          "appId": "1:919329399276:ios:a15a9e895b51a5657da0c9",
+          "uploadDebugSymbols": false,
+          "fileOutput": "ios/Runner/GoogleService-Info.plist"
+        }
+      }
+    }
+  },
+  "hosting": {
+    "public": "build/web",
+    "ignore": [
+      "firebase.json",
+      "**/.*",
+      "**/node_modules/**"
+    ],
+    "rewrites": [
+      {
+        "source": "**",
+        "destination": "/index.html"
+      }
+    ]
+  }
+}
