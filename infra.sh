@@ -43,9 +43,10 @@ gcloud run deploy planner-api \
   --region=$REGION \
   --service-account=planner-sa@$PROJECT_ID.iam.gserviceaccount.com \
   --allow-unauthenticated \
-  --set-env-vars=FIRESTORE_PROJECT=$PROJECT_ID,VERTEX_REGION=$REGION \
+  --set-env-vars=FIRESTORE_PROJECT=$PROJECT_ID,VERTEX_REGION=$REGION,MAPS_API_KEY_2="" \
   --set-env-vars='PLANGENIE_CORS_REGEX=^https?://localhost(:[0-9]+)?$' \
-  --set-env-vars=PLANGENIE_CORS_ORIGINS=https://your-prod.web.app,https://your-custom-domain.com
+  --set-env-vars=PLANGENIE_CORS_ORIGINS=https://plan-genie-hackathon.web.app
+  #,https://your-custom-domain.com
 
 # list docker images currently running
 gcloud artifacts docker images list \
@@ -62,3 +63,14 @@ gcloud artifacts docker images delete \
 
 # you can delete the repo
 gcloud artifacts repositories delete containers --location=$REGION
+
+# get the access keys
+gcloud secrets versions access latest \
+  --secret=MAPS_API_KEY \
+  --project=$PROJECT_ID
+
+# Log Queries
+resource.type="cloud_run_revision"
+resource.labels.service_name="planner-api"
+resource.labels.location="asia-south1"
+(textPayload:"Traceback" OR textPayload:"SyntaxError" OR textPayload:"Exception" OR textPayload:"ERROR")
