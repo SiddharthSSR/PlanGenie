@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 
 import 'package:plangenie/src/features/auth/login_screen.dart';
 import 'package:plangenie/src/features/auth/providers/onboarding_providers.dart';
@@ -169,6 +170,18 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
             SafeArea(
               child: Stack(
                 children: [
+                  Positioned(
+                    top: 8,
+                    left: 24,
+                    child: SizedBox(
+                      height: 60,
+                      width: 60,
+                      child: SvgPicture.asset(
+                        'assets/images/PlanGenie-Transparent_White.svg',
+                        fit: BoxFit.contain,
+                      ),
+                    ),
+                  ),
                   Positioned(
                     top: 16,
                     right: 24,

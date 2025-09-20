@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:plangenie/src/features/auth/providers/auth_providers.dart';
 import 'package:plangenie/src/features/home/data/planner_api.dart';
 import 'package:plangenie/src/features/home/providers/plan_controller.dart';
@@ -345,21 +346,17 @@ class _BrandTitle extends StatelessWidget {
     final textTheme = Theme.of(context).textTheme;
     return Row(
       children: [
-        Container(
-          width: 42,
-          height: 42,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            gradient: const LinearGradient(
-              colors: [Color(0xFF2563EB), Color(0xFF60A5FA)],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
+        Transform.translate(
+          offset: const Offset(0, -4),
+          child: SizedBox(
+            width: 50,
+            height: 50,
+            child: ClipOval(
+              child: SvgPicture.asset(
+                'assets/images/PlanGenie-Transparent.svg',
+                fit: BoxFit.contain,
+              ),
             ),
-          ),
-          alignment: Alignment.center,
-          child: Text(
-            '',
-            style: textTheme.headlineSmall?.copyWith(fontSize: 24),
           ),
         ),
         const SizedBox(width: 12),
