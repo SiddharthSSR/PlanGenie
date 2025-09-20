@@ -1,3 +1,5 @@
+import asyncio
+import httpx
 import requests
 from typing import Dict, List, Optional
 # from urllib.parse import urlencode
@@ -236,4 +238,240 @@ def get_fallback_destination_image(destination: str) -> Optional[str]:
     # - Placeholder service: f"https://via.placeholder.com/1600x900/cccccc/666666?text={destination}"
 
     print(f"[fallback_image] no fallback image service configured for {destination!r}")
+    return None
+
+
+# ---------------------------
+# ASYNC VERSIONS OF ALL FUNCTIONS
+# ---------------------------
+
+async def textsearch_raw_async(query: str, maps_key: str, client: httpx.AsyncClient) -> Dict:
+    """
+    Async version of textsearch_raw using httpx.AsyncClient
+    """
+    if not maps_key:
+        return {"status": "CONFIG_ERROR", "error": "Maps API key missing"}
+
+    try:
+        headers = {
+            'Content-Type': 'application/json',
+            'X-Goog-Api-Key': maps_key,
+            'X-Goog-FieldMask': 'places.id,places.displayName,places.formattedAddress,places.location,places.photos'
+        }
+        data = {"textQuery": query}
+
+        r = await client.post(TEXTSEARCH_URL, json=data, headers=headers, timeout=8.0)
+        r.raise_for_status()
+        j = r.json()
+
+        # Convert new API response format to legacy-like format for compatibility
+        places = j.get("places", [])
+        if places:
+            print(f"[textsearch_async] query={query!r} found {len(places)} places")
+            results = []
+            for place in places:
+                legacy_place = {
+                    "place_id": place.get("id"),
+                    "geometry": {
+                        "location": place.get("location", {})
+                    },
+                    "photos": place.get("photos", [])
+                }
+                if "displayName" in place:
+                    legacy_place["name"] = place["displayName"].get("text", "") if isinstance(place["displayName"], dict) else str(place["displayName"])
+                if "formattedAddress" in place:
+                    legacy_place["formatted_address"] = place["formattedAddress"]
+                results.append(legacy_place)
+
+            return {"status": "OK", "results": results}
+        else:
+            print(f"[textsearch_async] query={query!r} no places found")
+            return {"status": "ZERO_RESULTS", "results": []}
+
+    except Exception as e:
+        print(f"[textsearch_async] HTTP error for {query!r}: {e}")
+        return {"status": "HTTP_ERROR", "error": str(e)}
+
+
+async def enrich_block_async(block: Dict, city: str, maps_key: str, client: httpx.AsyncClient) -> Dict:
+    """
+    Async enrichment of a single block with place_id and lat/lng
+    """
+    title = block.get("title", "")
+    if not title:
+        return block
+
+    q = f"{title} in {city}"
+    try:
+        headers = {
+            'Content-Type': 'application/json',
+            'X-Goog-Api-Key': maps_key,
+            'X-Goog-FieldMask': 'places.id,places.location'
+        }
+        data = {"textQuery": q}
+
+        r = await client.post(TEXTSEARCH_URL, json=data, headers=headers, timeout=6.0)
+        r.raise_for_status()
+        places = r.json().get("places", [])
+        place = places[0] if places else None
+
+        # Convert to legacy format for compatibility
+        if place:
+            place = {
+                "place_id": place.get("id"),
+                "geometry": {
+                    "location": place.get("location", {})
+                }
+            }
+
+            block["place_id"] = place.get("place_id")
+            loc = place.get("geometry", {}).get("location", {})
+            block["lat"] = loc.get("latitude")
+            block["lng"] = loc.get("longitude")
+
+    except Exception as e:
+        print(f"[maps_enrich_async] warning for {q}: {e}")
+
+    return block
+
+
+async def enrich_day_async(day: Dict, city: str, maps_key: str, client: httpx.AsyncClient) -> Dict:
+    """
+    Async enrichment of all blocks in a day using concurrent requests
+    """
+    blocks = day.get("blocks", [])
+    if not blocks:
+        return day
+
+    # Process all blocks concurrently
+    enriched_blocks = await asyncio.gather(
+        *[enrich_block_async(block.copy(), city, maps_key, client) for block in blocks],
+        return_exceptions=True
+    )
+
+    # Handle any exceptions and fall back to original blocks
+    final_blocks = []
+    for i, result in enumerate(enriched_blocks):
+        if isinstance(result, Exception):
+            print(f"[enrich_day_async] block {i} failed: {result}")
+            final_blocks.append(blocks[i])  # Use original block
+        else:
+            final_blocks.append(result)
+
+    day["blocks"] = final_blocks
+    return day
+
+
+async def enrich_itinerary_async(city: str, days: List[Dict], maps_key: str) -> List[Dict]:
+    """
+    Async enrichment of all days in an itinerary using concurrent requests
+    """
+    if not maps_key or not days:
+        return days
+
+    async with httpx.AsyncClient(
+        timeout=httpx.Timeout(20.0, connect=5.0),
+        limits=httpx.Limits(max_connections=10, max_keepalive_connections=5)
+    ) as client:
+
+        # Process all days concurrently
+        enriched_days = await asyncio.gather(
+            *[enrich_day_async(day.copy(), city, maps_key, client) for day in days],
+            return_exceptions=True
+        )
+
+        # Handle any exceptions and fall back to original days
+        final_days = []
+        for i, result in enumerate(enriched_days):
+            if isinstance(result, Exception):
+                print(f"[enrich_itinerary_async] day {i} failed: {result}")
+                final_days.append(days[i])  # Use original day
+            else:
+                final_days.append(result)
+
+        return final_days
+
+
+async def get_destination_photo_reference_async(destination: str, maps_key: str) -> Optional[str]:
+    """
+    Async version of photo reference search with multiple query strategies
+    """
+    if not maps_key:
+        print("[places_photo_async] no API key configured")
+        return None
+
+    search_queries = [
+        destination,
+        f"{destination} tourist attraction",
+        f"{destination} landmark",
+        f"{destination} city",
+        destination.split(',')[0].strip() if ',' in destination else None,
+    ]
+
+    # Remove None values and duplicates
+    search_queries = list(dict.fromkeys([q for q in search_queries if q]))
+
+    async with httpx.AsyncClient(
+        timeout=httpx.Timeout(15.0, connect=5.0)
+    ) as client:
+
+        for query in search_queries:
+            try:
+                print(f"[places_photo_async] trying query: {query!r}")
+                headers = {
+                    'Content-Type': 'application/json',
+                    'X-Goog-Api-Key': maps_key,
+                    'X-Goog-FieldMask': 'places.photos'
+                }
+                data = {"textQuery": query}
+
+                r = await client.post(TEXTSEARCH_URL, json=data, headers=headers, timeout=8.0)
+                r.raise_for_status()
+                j = r.json()
+
+                places = j.get("places", [])
+                if not places:
+                    print(f"[places_photo_async] no places found for query={query!r}")
+                    continue
+
+                # Try multiple results, not just the first one
+                for i, place in enumerate(places[:3]):
+                    photos = place.get("photos", [])
+                    if not photos:
+                        continue
+
+                    # Look for the best photo (prefer larger photos)
+                    best_photo = None
+                    max_width = 0
+
+                    for photo in photos[:5]:
+                        photo_name = photo.get("name")
+                        width = photo.get("widthPx", 0)
+                        if photo_name and width > max_width:
+                            best_photo = photo_name
+                            max_width = width
+
+                    if best_photo:
+                        print(f"[places_photo_async] found photo name for {destination!r} using query={query!r} (result #{i+1}, width={max_width})")
+                        return best_photo
+
+                print(f"[places_photo_async] no photos found in results for query={query!r}")
+
+            except Exception as e:
+                print(f"[places_photo_async] textsearch error for query={query!r}: {e}")
+                continue
+
+    print(f"[places_photo_async] exhausted all search strategies for destination={destination!r}")
+    return None
+
+
+async def get_destination_hero_image_async(destination: str, maps_key: str, maxwidth: int = 1600) -> Optional[str]:
+    """
+    Async version of destination image retrieval
+    """
+    photo_name = await get_destination_photo_reference_async(destination, maps_key)
+    if photo_name:
+        return _build_photo_url_new(photo_name, maps_key, maxwidth)
+
+    print(f"[destination_hero_async] no Google Places photo found for {destination!r}")
     return None

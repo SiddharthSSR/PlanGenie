@@ -1,4 +1,5 @@
 import os
+import asyncio
 from typing import Literal, Any, Optional
 
 from fastapi import FastAPI, Request, HTTPException
@@ -7,7 +8,7 @@ from pydantic import BaseModel, Field
 from google.cloud import secretmanager
 
 from services.gemini import draft_itinerary_with_gemini
-from services.maps import enrich_with_maps, get_destination_hero_image, get_destination_photo_reference
+from services.maps import get_destination_hero_image, get_destination_photo_reference, enrich_itinerary_async, get_destination_photo_reference_async
 from services.store import save_itinerary
 
 # Proxy imports
@@ -69,6 +70,11 @@ class PlanRequest(BaseModel):
     mood: Literal[1, 2, 3, 4] = Field(
         2, examples=[2], description="1=chill, 2=balanced, 3=adventurous, 4=party"
     )
+    model: str = Field(
+        "gemini-2.5-flash-lite",
+        examples=["gemini-2.5-flash-lite", "gemini-2.5-flash-8b"],
+        description="Gemini model to use for generating itinerary"
+    )
 
 
 @app.get("/")
@@ -79,10 +85,35 @@ def root():
 @app.on_event("startup")
 def boot():
     global MAPS_API_KEY_2
-    if not PROJECT_ID:
-        raise RuntimeError("FIRESTORE_PROJECT env var is required")
 
-    # Gemini API key validation will happen when making requests
+    # Check for Gemini authentication
+    gemini_api_key = os.getenv("GEMINI_API_KEY")
+    print("[boot] Environment variables check:")
+    print(f"[boot] GEMINI_API_KEY: {'Set' if gemini_api_key else 'Not set'}")
+    print(f"[boot] FIRESTORE_PROJECT: {PROJECT_ID}")
+    print(f"[boot] GOOGLE_GENAI_USE_VERTEXAI: {os.getenv('GOOGLE_GENAI_USE_VERTEXAI')}")
+
+    if gemini_api_key:
+        print(f"[boot] GEMINI_API_KEY found (ends with: ...{gemini_api_key[-6:]}) - will use direct API authentication")
+        # Test the Gemini connection during startup
+        try:
+            from services.gemini import init_gemini
+            client = init_gemini()
+            test_resp = client.models.generate_content(
+                model="gemini-2.5-flash-lite",
+                contents="Say 'OK' if you can read this."
+            )
+            print(f"[boot] Gemini API test successful: {(test_resp.text or '').strip()}")
+        except Exception as e:
+            print(f"[boot] WARNING: Gemini API test failed: {e}")
+    elif PROJECT_ID:
+        print("[boot] GEMINI_API_KEY not found - will use Vertex AI authentication")
+    else:
+        raise RuntimeError("Either GEMINI_API_KEY or FIRESTORE_PROJECT env var is required for Gemini")
+
+    # Project ID is still needed for Firestore
+    if not PROJECT_ID:
+        print("[boot] Warning: FIRESTORE_PROJECT not set - Firestore operations will fail")
 
     # Prefer env var (for local/dev), else Secret Manager
     MAPS_API_KEY_2 = os.getenv("MAPS_API_KEY_2")
@@ -110,12 +141,12 @@ def boot():
 
 
 @app.post("/plan")
-def plan(req: PlanRequest, request: Request):
+async def plan(req: PlanRequest, request: Request):
     prefs = req.model_dump()
     prefs["moodLabel"] = MOOD_LABELS.get(req.mood, "balanced")
 
     # 1) Ask Gemini for a multi-day plan
-    draft = draft_itinerary_with_gemini(prefs)
+    draft = draft_itinerary_with_gemini(prefs, req.model)
 
     city = draft.get("city") or req.destination
     days = draft.get("days") if isinstance(draft.get("days"), list) else []
@@ -135,37 +166,68 @@ def plan(req: PlanRequest, request: Request):
     if blurb:
         itinerary_draft["destinationBlurb"] = str(blurb).strip()[:140]
 
-    # Set image URL with better error handling and fallback options
-    if MAPS_API_KEY_2:
-        # Test if we can get a photo reference for this destination
-        test_ref = get_destination_photo_reference(city, MAPS_API_KEY_2)
-        if test_ref:
-            itinerary_draft["imageUrl"] = f"/media/destination?q={quote(city)}"
-            print(f"[hero_image] Google Places photo available for {city}")
-        else:
-            print(f"[hero_image] No Google Places photo found for {city}, frontend should use fallback")
-            # Don't set imageUrl - let frontend handle fallback images
-    else:
-        print("[hero_image] MAPS_API_KEY_2 is not configured, no destination images available")
-
     itinerary = {"prefs": prefs, "itineraryDraft": itinerary_draft, "status": "DRAFT"}
 
-    # 2) Enrich with Maps (server-side only)
+    # Check if Firestore is available for saving
+    save_to_firestore = bool(PROJECT_ID)
+
+    # 2) Run Maps enrichment and photo check concurrently with Firestore save
+    tasks = []
+
+    # Task 1: Enrich itinerary with Maps data (if API key available)
     if MAPS_API_KEY_2:
-        enriched_days = []
-        for day in itinerary["itineraryDraft"]["days"]:
-            try:
-                enriched_days.append(enrich_with_maps(city, day, MAPS_API_KEY_2))
-            except Exception as e:
-                print(f"[maps_enrich] warning: {e}")
-                enriched_days.append(day)
+        tasks.append(enrich_itinerary_async(city, itinerary["itineraryDraft"]["days"], MAPS_API_KEY_2))
+        tasks.append(get_destination_photo_reference_async(city, MAPS_API_KEY_2))
+    else:
+        # Create dummy async functions that return None/original data
+        async def no_enrichment():
+            return itinerary["itineraryDraft"]["days"]
+        async def no_photo():
+            return None
+        tasks.append(no_enrichment())
+        tasks.append(no_photo())
+
+    # Task 3: Store in Firestore (run in thread pool since it's not async)
+    if save_to_firestore and PROJECT_ID:
+        loop = asyncio.get_event_loop()
+        tasks.append(loop.run_in_executor(None, save_itinerary, PROJECT_ID, itinerary))
+    else:
+        # Create dummy async function that returns a local trip ID
+        async def no_save():
+            return "local_draft"
+        tasks.append(no_save())
+
+    # Execute all tasks concurrently
+    results = await asyncio.gather(*tasks, return_exceptions=True)
+
+    # Process results
+    enriched_days, photo_ref, trip_id = results
+
+    # Handle enriched days
+    if isinstance(enriched_days, Exception):
+        print(f"[maps_enrich_async] warning: {enriched_days}")
+    elif enriched_days is not None and isinstance(enriched_days, list):
         itinerary["itineraryDraft"]["days"] = enriched_days
+        print(f"[maps_enrich_async] successfully enriched {len(enriched_days)} days")
 
-    if not PROJECT_ID:
-        raise RuntimeError("FIRESTORE_PROJECT env var is required")
+    # Handle photo reference
+    if isinstance(photo_ref, Exception):
+        print(f"[hero_image_async] photo lookup failed: {photo_ref}")
+    elif photo_ref is not None:
+        itinerary_draft["imageUrl"] = f"/media/destination?q={quote(city)}"
+        print(f"[hero_image_async] Google Places photo available for {city}")
+    elif MAPS_API_KEY_2:
+        print(f"[hero_image_async] No Google Places photo found for {city}, frontend should use fallback")
+    else:
+        print("[hero_image_async] MAPS_API_KEY_2 is not configured, no destination images available")
 
-    # 3) Store in Firestore
-    trip_id = save_itinerary(PROJECT_ID, itinerary)
+    # Handle trip_id
+    if isinstance(trip_id, Exception):
+        raise RuntimeError(f"Failed to save itinerary: {trip_id}")
+
+    if not save_to_firestore:
+        print("[plan] Itinerary created without Firestore save (using local draft ID)")
+
     return {"tripId": trip_id, "draft": itinerary["itineraryDraft"]}
 
 # testsearch debugging

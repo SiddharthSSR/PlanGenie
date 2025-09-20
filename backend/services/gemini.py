@@ -7,28 +7,40 @@ from google import genai
 
 
 def init_gemini():
-    """Initialize the Gemini client with Vertex AI ADC"""
+    """Initialize the Gemini client with API key or Vertex AI ADC"""
+    # Try GEMINI_API_KEY first (direct API)
+    api_key = os.getenv("GEMINI_API_KEY")
+    if api_key:
+        print(f"[gemini] Using direct API key authentication (key ends with: ...{api_key[-6:]})")
+        return genai.Client(api_key=api_key)
+
+    # Fallback to Vertex AI
     project_id = os.getenv("FIRESTORE_PROJECT")
-
     if not project_id:
-        raise RuntimeError("FIRESTORE_PROJECT env var is required for Vertex AI")
+        print("[gemini] ERROR: No GEMINI_API_KEY found and no FIRESTORE_PROJECT for Vertex AI")
+        print(f"[gemini] Available env vars: {[k for k in os.environ.keys() if 'GEMINI' in k or 'GOOGLE' in k or 'VERTEX' in k]}")
+        raise RuntimeError("Either GEMINI_API_KEY or FIRESTORE_PROJECT env var is required")
 
-    # Use Vertex AI with Application Default Credentials
+    print(f"[gemini] Using Vertex AI authentication with project: {project_id}")
     from google.genai.types import HttpOptions
     return genai.Client(
         http_options=HttpOptions(api_version="v1"),
         vertexai=True,
         project=project_id,
-        location="asia-south1"
+        location="global"
     )
 
 
-def draft_itinerary_with_gemini(prefs: Dict) -> Dict:
+def draft_itinerary_with_gemini(prefs: Dict, model: str = "gemini-2.5-flash-lite") -> Dict:
     """
     Ask Gemini for a multi-day itinerary with three activities per day.
     Return a normalized itinerary skeleton. Ensures a computed total_budget
     that is derived from the itinerary (not just echoing user input), and
     includes a one-line destination_blurb.
+
+    Args:
+        prefs: Dictionary containing travel preferences
+        model: Gemini model to use. Options: "gemini-2.5-flash", "gemini-2.5-flash-lite"
     """
     client = init_gemini()
     mood_label = prefs.get("moodLabel", "balanced")
@@ -42,7 +54,7 @@ def draft_itinerary_with_gemini(prefs: Dict) -> Dict:
 
     Requirements:
     - Include every day from the start date through the end date (inclusive).
-    - Provide exactly three activities per day.
+    - Provide exactly three activities per day. (Keep the activities a bit descriptive)
     - Use realistic times between 08:00 and 22:00 in chronological order.
     - Tailor activity choices to the requested mood.
     - Also include a numeric field 'total_budget' (INR) for the full trip, computed from your proposed plan.
@@ -71,15 +83,19 @@ def draft_itinerary_with_gemini(prefs: Dict) -> Dict:
     """
 
     try:
+        print(f"[gemini] Making API call with model: {model}")
         resp = client.models.generate_content(
-            model="gemini-2.5-flash",
+            model=model,
             contents=prompt
         )
+        print(f"[gemini] {model} API call successful, processing response...")
         text = (resp.text or "").strip().strip("`")
         if "{" not in text or "}" not in text:
+            print(f"[gemini] ERROR: Response did not contain JSON. Text: {text[:200]}...")
             raise ValueError("Gemini response did not contain JSON")
         payload = text[text.find("{"): text.rfind("}") + 1]
         raw = json.loads(payload)
+        print(f"[gemini] {model} Successfully parsed JSON response")
 
         normalized = _normalize_response(raw, prefs)
         if not normalized.get("days"):
@@ -116,7 +132,10 @@ def draft_itinerary_with_gemini(prefs: Dict) -> Dict:
         return normalized
 
     except Exception as exc:
-        print(f"[gemini] fallback activated: {exc}")
+        print(f"[gemini] ERROR: API call failed, activating fallback. Error: {exc}")
+        print(f"[gemini] Error type: {type(exc).__name__}")
+        import traceback
+        print(f"[gemini] Full traceback: {traceback.format_exc()}")
         return _fallback_itinerary(prefs)
 
 

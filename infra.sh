@@ -54,6 +54,18 @@ gcloud run deploy planner-api \
   --set-env-vars=PLANGENIE_CORS_ORIGINS=https://plan-genie-hackathon.web.app
   #,https://your-custom-domain.com
 
+# gcloud run deploy planner-api \
+#     --image=$REGION-docker.pkg.dev/$PROJECT_ID/containers/planner-api:latest \
+#     --region=$REGION \
+#     --service-account=planner-sa@$PROJECT_ID.iam.gserviceaccount.com \
+#     --allow-unauthenticated \
+#     --set-env-vars=FIRESTORE_PROJECT=$PROJECT_ID \
+#     --set-env-vars=MAPS_API_KEY_2= \
+#     --set-env-vars=GEMINI_API_KEY= \
+#     --set-env-vars=GOOGLE_GENAI_USE_VERTEXAI=true \
+#     --set-env-vars='PLANGENIE_CORS_REGEX=^https?://localhost:[0-9]+$' \
+#     --set-env-vars=PLANGENIE_CORS_ORIGINS=https://plan-genie-hackathon.web.app
+
 # list docker images currently running
 gcloud artifacts docker images list \
   $REGION-docker.pkg.dev/$PROJECT_ID/containers \
@@ -80,3 +92,14 @@ resource.type="cloud_run_revision"
 resource.labels.service_name="planner-api"
 resource.labels.location="asia-south1"
 (textPayload:"Traceback" OR textPayload:"SyntaxError" OR textPayload:"Exception" OR textPayload:"ERROR")
+
+resource.type="cloud_run_revision"
+resource.labels.service_name="planner-api"
+
+resource.type="cloud_run_revision"
+resource.labels.service_name="planner-api"
+textPayload:("[boot]" OR "[gemini]")
+
+resource.type="cloud_run_revision"
+resource.labels.service_name="planner-api"
+textPayload:("hero_image" OR "places_photo" OR "maps_enrich" OR "boot")
