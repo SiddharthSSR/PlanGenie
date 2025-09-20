@@ -11,6 +11,7 @@ ios/Runner/GoogleService-Info.plist
 plangenie.iml
 android/*.iml
 android/local.properties
+.firebase/
 
 # IDE files
 .idea/

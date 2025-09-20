@@ -99,22 +99,27 @@ class PlanGenieTheme {
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(16),
           borderSide: BorderSide(color: outline.withValues(alpha: 0.5)),
+          gapPadding: 8,
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(16),
           borderSide: BorderSide(color: outline.withValues(alpha: 0.5)),
+          gapPadding: 8,
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(16),
           borderSide: BorderSide(color: primary, width: 1.6),
+          gapPadding: 8,
         ),
         errorBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(16),
           borderSide: BorderSide(color: scheme.error),
+          gapPadding: 8,
         ),
         focusedErrorBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(16),
           borderSide: BorderSide(color: scheme.error),
+          gapPadding: 8,
         ),
         filled: true,
         fillColor: palette.tintedSurface,
@@ -122,6 +127,8 @@ class PlanGenieTheme {
           horizontal: 18,
           vertical: 14,
         ),
+        floatingLabelBehavior: FloatingLabelBehavior.auto,
+        floatingLabelStyle: textTheme.labelLarge?.copyWith(height: 1.2),
       ),
       checkboxTheme: CheckboxThemeData(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
