@@ -1,13 +1,46 @@
 import json
 from datetime import datetime, timedelta, date
 from typing import Dict, List, Optional
+import os
 
-import vertexai
-from vertexai.generative_models import GenerativeModel
+from google import genai
 
 
-def init_vertex(project_id: str, region: str):
-    vertexai.init(project=project_id, location=region)
+def init_gemini():
+    """Initialize the Gemini client with API key or Vertex AI ADC"""
+    # Check if we should use Vertex AI ADC (no API key needed)
+    use_vertex = os.getenv("GOOGLE_GENAI_USE_VERTEXAI", "").lower() == "true"
+    project_id = os.getenv("FIRESTORE_PROJECT")
+
+    if use_vertex and project_id:
+        # Use Vertex AI with Application Default Credentials
+        from google.genai.types import HttpOptions
+        return genai.Client(
+            http_options=HttpOptions(api_version="v1"),
+            vertexai=True,
+            project=project_id,
+            location="asia-south1"
+        )
+
+    # Fallback to API key approach
+    api_key = os.getenv("GEMINI_API_KEY")
+
+    # If no env var, try to get from secret manager (for production)
+    if not api_key:
+        try:
+            from google.cloud import secretmanager
+            if project_id:
+                client = secretmanager.SecretManagerServiceClient()
+                name = client.secret_version_path(project_id, "GEMINI_API_KEY", "latest")
+                response = client.access_secret_version(request={"name": name})
+                api_key = response.payload.data.decode("UTF-8")
+        except Exception:
+            pass
+
+    if not api_key:
+        raise RuntimeError("Either set GOOGLE_GENAI_USE_VERTEXAI=true with FIRESTORE_PROJECT, or provide GEMINI_API_KEY")
+
+    return genai.Client(api_key=api_key)
 
 
 def draft_itinerary_with_gemini(prefs: Dict) -> Dict:
@@ -17,7 +50,7 @@ def draft_itinerary_with_gemini(prefs: Dict) -> Dict:
     that is derived from the itinerary (not just echoing user input), and
     includes a one-line destination_blurb.
     """
-    model = GenerativeModel("gemini-1.5-flash")
+    client = init_gemini()
     mood_label = prefs.get("moodLabel", "balanced")
 
     # Prompt keeps your existing structure, adds clear budgeting + blurb instruction.
@@ -58,7 +91,10 @@ def draft_itinerary_with_gemini(prefs: Dict) -> Dict:
     """
 
     try:
-        resp = model.generate_content(prompt)
+        resp = client.models.generate_content(
+            model="gemini-2.5-flash",
+            contents=prompt
+        )
         text = (resp.text or "").strip().strip("`")
         if "{" not in text or "}" not in text:
             raise ValueError("Gemini response did not contain JSON")

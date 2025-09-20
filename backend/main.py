@@ -6,8 +6,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from google.cloud import secretmanager
 
-from services.gemini import init_vertex, draft_itinerary_with_gemini
-from services.maps import enrich_with_maps, get_destination_hero_image, get_destination_photo_reference, get_fallback_destination_image
+from services.gemini import draft_itinerary_with_gemini
+from services.maps import enrich_with_maps, get_destination_hero_image, get_destination_photo_reference
 from services.store import save_itinerary
 
 # Proxy imports
@@ -23,7 +23,6 @@ DEFAULT_UA = os.getenv(
 )
 
 PROJECT_ID = os.environ.get("FIRESTORE_PROJECT")
-REGION = os.environ.get("VERTEX_REGION", "asia-south1")
 
 MOOD_LABELS = {1: "chill", 2: "balanced", 3: "adventurous", 4: "party"}
 
@@ -83,7 +82,7 @@ def boot():
     if not PROJECT_ID:
         raise RuntimeError("FIRESTORE_PROJECT env var is required")
 
-    init_vertex(PROJECT_ID, REGION)
+    # Gemini API key validation will happen when making requests
 
     # Prefer env var (for local/dev), else Secret Manager
     MAPS_API_KEY_2 = os.getenv("MAPS_API_KEY_2")

@@ -4,7 +4,7 @@ export REGION=asia-south1
 gcloud config set project $PROJECT_ID
 
 # Enable just these
-gcloud services enable run.googleapis.com firestore.googleapis.com aiplatform.googleapis.com secretmanager.googleapis.com
+gcloud services enable run.googleapis.com firestore.googleapis.com aiplatform.googleapis.com secretmanager.googleapis.com generativelanguage.googleapis.com
 
 # Firestore (Native)
 gcloud firestore databases create --location=$REGION
@@ -18,11 +18,17 @@ gcloud projects add-iam-policy-binding $PROJECT_ID \
   --role="roles/datastore.user"
 gcloud projects add-iam-policy-binding $PROJECT_ID \
   --member="serviceAccount:planner-sa@$PROJECT_ID.iam.gserviceaccount.com" \
+  --role="roles/secretmanager.secretAccessor"
+gcloud projects add-iam-policy-binding $PROJECT_ID \
+  --member="serviceAccount:planner-sa@$PROJECT_ID.iam.gserviceaccount.com" \
   --role="roles/aiplatform.user"
 
 # Secrets (store your keys)
 gcloud secrets create MAPS_API_KEY --replication-policy=automatic
 echo -n "<your-maps-key>" | gcloud secrets versions add MAPS_API_KEY --data-file=-
+
+gcloud secrets create GEMINI_API_KEY --replication-policy=automatic
+echo -n "<your-gemini-api-key>" | gcloud secrets versions add GEMINI_API_KEY --data-file=-
 
 # (Optional later) BigQuery
 # bq mk -d --location=$REGION trips
@@ -43,7 +49,7 @@ gcloud run deploy planner-api \
   --region=$REGION \
   --service-account=planner-sa@$PROJECT_ID.iam.gserviceaccount.com \
   --allow-unauthenticated \
-  --set-env-vars=FIRESTORE_PROJECT=$PROJECT_ID,VERTEX_REGION=$REGION,MAPS_API_KEY_2="" \
+  --set-env-vars=FIRESTORE_PROJECT=$PROJECT_ID,MAPS_API_KEY_2="",GOOGLE_GENAI_USE_VERTEXAI=true \
   --set-env-vars='PLANGENIE_CORS_REGEX=^https?://localhost(:[0-9]+)?$' \
   --set-env-vars=PLANGENIE_CORS_ORIGINS=https://plan-genie-hackathon.web.app
   #,https://your-custom-domain.com
